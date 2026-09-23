@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
+import fs from 'fs';
 import authRoutes from './routes/authRoutes.js';
 import clientRoutes from './routes/clientRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
@@ -17,7 +19,7 @@ export const createApp = (): express.Application => {
   const app = express();
 
   // Security & standard middlewares
-  app.use(helmet({ crossOriginResourcePolicy: false }));
+  app.use(helmet({ crossOriginResourcePolicy: false, contentSecurityPolicy: false }));
   app.use(
     cors({
       origin: true, // Allow all origins in dev or specify client
@@ -50,7 +52,19 @@ export const createApp = (): express.Application => {
   app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/reports', reportRoutes);
 
-  // 404 handler
+  // Serve static assets from frontend build if present
+  const frontendDistPath = path.resolve(process.cwd(), 'frontend/dist');
+  if (fs.existsSync(frontendDistPath)) {
+    app.use(express.static(frontendDistPath));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) {
+        return next();
+      }
+      res.sendFile(path.join(frontendDistPath, 'index.html'));
+    });
+  }
+
+  // 404 handler for API routes
   app.use((req, res) => {
     res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
   });

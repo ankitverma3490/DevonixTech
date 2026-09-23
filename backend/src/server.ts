@@ -13,10 +13,10 @@ const startServer = async () => {
 
     const app = createApp();
 
-    const server = app.listen(ENV.PORT, () => {
+    const server = app.listen(ENV.PORT, '0.0.0.0', () => {
       console.log(`====================================================`);
-      console.log(`🚀 Backend Server running at: http://localhost:${ENV.PORT}`);
-      console.log(`📡 Health Check endpoint:    http://localhost:${ENV.PORT}/api/health`);
+      console.log(`🚀 Backend Server running at: http://0.0.0.0:${ENV.PORT}`);
+      console.log(`📡 Health Check endpoint:    http://0.0.0.0:${ENV.PORT}/api/health`);
       console.log(`====================================================`);
     });
 

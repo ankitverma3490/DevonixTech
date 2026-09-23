@@ -9,23 +9,28 @@ export const connectDB = async (): Promise<void> => {
     let uri = ENV.MONGODB_URI;
 
     if (!uri) {
-      console.log('🔄 No MONGODB_URI found. Initializing in-memory MongoDB server...');
+      if (ENV.NODE_ENV === 'production') {
+        console.warn('⚠️ WARNING: No MONGODB_URI found in production environment! Please set MONGODB_URI in your deployment settings.');
+      }
+      console.log('🔄 Initializing in-memory MongoDB server...');
       mongod = await MongoMemoryServer.create();
       uri = mongod.getUri();
       console.log(`📦 MongoDB In-Memory instance started at: ${uri}`);
     } else {
-      console.log(`🔗 Connecting to configured MongoDB URI: ${uri}`);
+      console.log(`🔗 Connecting to configured MongoDB URI...`);
     }
 
     mongoose.set('strictQuery', false);
-    await mongoose.connect(uri);
+    await mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 10000,
+    });
     console.log('✅ Connected to MongoDB successfully.');
   } catch (error) {
-    console.error('❌ Failed to connect to MongoDB:', error);
-    // If external URI fails, try falling back to in-memory server
+    console.error('❌ Failed to connect to configured MongoDB:', error);
+    // If external URI fails, try falling back to in-memory server if not in production
     if (!mongod) {
       try {
-        console.log('🔄 Retrying with in-memory MongoDB fallback...');
+        console.log('🔄 Attempting in-memory MongoDB fallback...');
         mongod = await MongoMemoryServer.create();
         const fallbackUri = mongod.getUri();
         await mongoose.connect(fallbackUri);
