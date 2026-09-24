@@ -7,6 +7,7 @@ const PayrollMilestoneSchema = new Schema<IPayrollMilestone>(
     project: { type: Schema.Types.ObjectId, ref: 'Project', required: true },
     teamMember: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     title: { type: String, required: true, trim: true },
+    currency: { type: String, default: 'INR', enum: ['INR'], required: true },
     amount: { type: Number, required: true, min: 0 },
     dueDate: { type: Date, required: true },
     paidDate: { type: Date },

@@ -10,7 +10,9 @@ export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'completed';
 
 export type PaymentType = 'fixed' | 'percentage' | 'per_task' | 'hourly';
 export type MilestoneStatus = 'pending' | 'paid' | 'overdue';
-export type ClientPaymentStatus = 'pending' | 'paid' | 'overdue' | 'partially_paid';
+export type ClientPaymentStatus = 'pending' | 'paid' | 'overdue' | 'partially_paid' | 'cancelled';
+
+export type Currency = 'INR' | 'USD';
 
 export type ExpenseCategory =
   | 'hosting'
@@ -66,19 +68,27 @@ export interface IProjectFinances {
   projectId: string;
   projectMongoId: string;
   projectName: string;
-  contractValue: number;
-  clientReceived: number;
-  clientPending: number;
-  teamPayrollCommitted: number;
-  teamPayrollPaid: number;
-  teamPayrollPending: number;
-  expenses: number;
-  totalCost: number;
-  expectedProfit: number;
-  profitMargin: number;
-  cashReceived: number;
-  cashPaidOut: number;
-  netCashPosition: number;
+  currency: Currency;
+  estimatedExchangeRate: number;
+  contractValue: number; // Value in original currency
+  estimatedInrValue: number; // In base INR
+  clientReceived: number; // In original currency
+  clientReceivedInr: number; // In base INR
+  clientPending: number; // In original currency
+  clientPendingInr: number; // In base INR
+  teamPayrollCommitted: number; // Always in INR
+  teamPayrollPaid: number; // Always in INR
+  teamPayrollPending: number; // Always in INR
+  expenses: number; // Always in INR
+  totalCost: number; // Always in INR
+  expectedProfit: number; // In INR
+  profitMargin: number; // %
+  actualCashProfit: number; // In INR
+  actualCashMargin: number; // %
+  cashReceived: number; // In original currency
+  cashReceivedInr: number; // In INR
+  cashPaidOut: number; // In INR
+  netCashPosition: number; // In INR
 }
 
 export interface IProject {
@@ -93,7 +103,10 @@ export interface IProject {
   actualEndDate?: string;
   status: ProjectStatus;
   priority: PriorityLevel;
-  projectValue: number;
+  currency: Currency;
+  projectValue: number; // In original currency
+  estimatedExchangeRate: number; // Rate for USD, 1 for INR
+  estimatedInrValue: number; // In base INR
   projectManager: IUser | string;
   technologies: string[];
   notes?: string;
@@ -114,10 +127,11 @@ export interface IPayroll {
   project: IProject | string;
   teamMember: IUser | string;
   role: string;
-  agreedAmount: number;
+  currency?: 'INR';
+  agreedAmount: number; // Always in INR
   paymentType: PaymentType;
-  totalPaid: number;
-  pendingAmount: number;
+  totalPaid: number; // Always in INR
+  pendingAmount: number; // Always in INR
   status: 'pending' | 'partially_paid' | 'paid';
   milestones?: IPayrollMilestone[];
   assignedTasksCount?: number;
@@ -130,7 +144,8 @@ export interface IPayrollMilestone {
   project: IProject | string;
   teamMember: IUser | string;
   title: string;
-  amount: number;
+  currency?: 'INR';
+  amount: number; // Always in INR
   dueDate: string;
   paidDate?: string;
   status: MilestoneStatus;
@@ -155,7 +170,11 @@ export interface IClientPayment {
   _id: string;
   project: IProject | string;
   client: IClient | string;
-  amount: number;
+  currency: Currency;
+  amount: number; // Original currency amount
+  exchangeRate: number; // Stored transaction rate (1 for INR, e.g. 88 for USD)
+  inrAmount: number; // Converted INR amount
+  requiresExchangeRateUpdate?: boolean;
   paymentDate?: string;
   dueDate: string;
   paymentMethod?: string;
@@ -169,7 +188,8 @@ export interface IExpense {
   project?: IProject | string;
   name: string;
   category: ExpenseCategory;
-  amount: number;
+  currency?: 'INR';
+  amount: number; // Always in INR
   date: string;
   paymentMethod?: string;
   description?: string;
@@ -179,6 +199,7 @@ export interface IExpense {
 export interface IDashboardSummary {
   role: UserRole;
   cards?: {
+    currency?: string;
     totalClients: number;
     activeProjects: number;
     completedProjects: number;
@@ -188,16 +209,21 @@ export interface IDashboardSummary {
     totalClientPending: number;
     teamPayroll: number;
     teamPayrollCommitted: number;
+    teamPayrollPaid: number;
     teamPayrollPending: number;
     expenses: number;
+    totalExpenses: number;
     netProfit: number;
     profitMargin: number;
     accrualProfit: number;
-    accrualMargin: number;
+    currencyBreakdown?: {
+      usdRevenue: number;
+      inrDirectRevenue: number;
+      totalInrRevenue: number;
+    };
   };
   summary?: any;
-  recentProjects?: IProject[];
-  payrolls?: IPayroll[];
   upcomingMilestones?: IPayrollMilestone[];
   recentTasks?: ITask[];
+  recentProjects?: IProject[];
 }

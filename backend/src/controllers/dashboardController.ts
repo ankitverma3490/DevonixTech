@@ -15,9 +15,9 @@ export const getDashboardSummary = async (req: AuthRequest, res: Response): Prom
     const userRole = req.user?.role;
     const userId = req.user?.userId;
 
-    // Team Member Dashboard
+    // 1. Team Member Dashboard (Always INR)
     if (userRole === 'team_member') {
-      const payrolls = await Payroll.find({ teamMember: userId }).populate('project', 'name projectId status projectValue');
+      const payrolls = await Payroll.find({ teamMember: userId }).populate('project', 'name projectId status currency projectValue estimatedInrValue');
       const milestones = await PayrollMilestone.find({ teamMember: userId }).sort({ dueDate: 1 });
       const tasks = await Task.find({ assignedTo: userId }).populate('project', 'name projectId');
 
@@ -38,6 +38,7 @@ export const getDashboardSummary = async (req: AuthRequest, res: Response): Prom
         success: true,
         role: 'team_member',
         summary: {
+          currency: 'INR',
           totalAgreed,
           totalPaid,
           totalPending,
@@ -54,7 +55,7 @@ export const getDashboardSummary = async (req: AuthRequest, res: Response): Prom
       return;
     }
 
-    // Project Manager Dashboard
+    // 2. Project Manager Dashboard
     if (userRole === 'project_manager') {
       const projects = await Project.find({ projectManager: userId }).populate('client', 'name companyName');
       const projectIds = projects.map((p) => p._id);
@@ -67,11 +68,22 @@ export const getDashboardSummary = async (req: AuthRequest, res: Response): Prom
         Expense.find({ project: { $in: projectIds } }),
       ]);
 
-      const totalProjectValue = projects.reduce((sum, p) => sum + (p.projectValue || 0), 0);
-      const totalReceived = payments
-        .filter((p) => p.status === 'paid')
-        .reduce((sum, p) => sum + (p.amount || 0), 0);
-      const totalPendingInvoices = Math.max(0, totalProjectValue - totalReceived);
+      // Calculate total contract value in INR
+      const totalContractValueInr = projects.reduce((sum, p) => {
+        if (p.estimatedInrValue) return sum + p.estimatedInrValue;
+        const rate = p.estimatedExchangeRate || (p.currency === 'USD' ? 88 : 1);
+        return sum + (p.currency === 'USD' ? Math.round(p.projectValue * rate) : p.projectValue);
+      }, 0);
+
+      // Calculate total revenue received in INR using stored rates
+      const paidPayments = payments.filter((p) => p.status === 'paid');
+      const totalReceivedInr = paidPayments.reduce((sum, p) => {
+        if (p.inrAmount !== undefined && p.inrAmount !== null) return sum + p.inrAmount;
+        const rate = p.exchangeRate || (p.currency === 'USD' ? 88 : 1);
+        return sum + (p.currency === 'USD' ? Math.round(p.amount * rate) : p.amount);
+      }, 0);
+
+      const totalPendingInvoicesInr = Math.max(0, totalContractValueInr - totalReceivedInr);
 
       const teamPayrollCommitted = payrolls.reduce((sum, p) => sum + (p.agreedAmount || 0), 0);
       const teamPayrollPaid = milestones
@@ -79,8 +91,8 @@ export const getDashboardSummary = async (req: AuthRequest, res: Response): Prom
         .reduce((sum, m) => sum + (m.amount || 0), 0);
 
       const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-      const netProfit = totalProjectValue - teamPayrollCommitted - totalExpenses;
-      const profitMargin = totalProjectValue > 0 ? (netProfit / totalProjectValue) * 100 : 0;
+      const netProfit = totalReceivedInr - teamPayrollPaid - totalExpenses;
+      const profitMargin = totalReceivedInr > 0 ? (netProfit / totalReceivedInr) * 100 : 0;
 
       const completedTasks = tasks.filter((t) => t.status === 'completed').length;
 
@@ -103,11 +115,12 @@ export const getDashboardSummary = async (req: AuthRequest, res: Response): Prom
         success: true,
         role: 'project_manager',
         summary: {
+          currency: 'INR',
           managedProjectsCount: projects.length,
           activeProjectsCount: projects.filter((p) => p.status === 'active').length,
-          totalProjectValue,
-          totalReceived,
-          totalPendingInvoices,
+          totalProjectValue: totalContractValueInr,
+          totalReceived: totalReceivedInr,
+          totalPendingInvoices: totalPendingInvoicesInr,
           teamPayrollCommitted,
           teamPayrollPaid,
           totalExpenses,
@@ -121,7 +134,7 @@ export const getDashboardSummary = async (req: AuthRequest, res: Response): Prom
       return;
     }
 
-    // Admin Dashboard (Agency Wide)
+    // 3. Admin Dashboard (Agency Wide - Base INR Reporting)
     const [clientsCount, projects, teamCount, payments, payrolls, milestones, expenses] =
       await Promise.all([
         Client.countDocuments(),
@@ -133,37 +146,75 @@ export const getDashboardSummary = async (req: AuthRequest, res: Response): Prom
         Expense.find(),
       ]);
 
-    const totalContractValue = projects.reduce((sum, p) => sum + (p.projectValue || 0), 0);
+    // Total Contract Value in INR (Base reporting)
+    const totalContractValue = projects.reduce((sum, p) => {
+      if (p.estimatedInrValue) return sum + p.estimatedInrValue;
+      const rate = p.estimatedExchangeRate || (p.currency === 'USD' ? 88 : 1);
+      return sum + (p.currency === 'USD' ? Math.round(p.projectValue * rate) : p.projectValue);
+    }, 0);
 
-    // Revenue = Client Payments Received
-    const totalRevenue = payments
-      .filter((p) => p.status === 'paid')
-      .reduce((sum, p) => sum + (p.amount || 0), 0);
+    // Total Revenue = Sum of all paid payments in INR
+    const paidPayments = payments.filter((p) => p.status === 'paid');
+    const totalRevenue = paidPayments.reduce((sum, p) => {
+      if (p.inrAmount !== undefined && p.inrAmount !== null) return sum + p.inrAmount;
+      const rate = p.exchangeRate || (p.currency === 'USD' ? 88 : 1);
+      return sum + (p.currency === 'USD' ? Math.round(p.amount * rate) : p.amount);
+    }, 0);
 
     const totalClientPending = Math.max(0, totalContractValue - totalRevenue);
 
-    // Team Payroll (Committed and Paid)
+    // Team Payroll (Committed and Paid - strictly INR)
     const teamPayrollCommitted = payrolls.reduce((sum, p) => sum + (p.agreedAmount || 0), 0);
     const teamPayrollPaid = milestones
       .filter((m) => m.status === 'paid')
       .reduce((sum, m) => sum + (m.amount || 0), 0);
     const teamPayrollPending = Math.max(0, teamPayrollCommitted - teamPayrollPaid);
 
-    // Expenses
+    // Expenses (strictly INR)
     const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
-    // Accrual Financials (Contract Value - Committed Payroll - Expenses)
+    // Accrual Financials (Contract Value - Committed Payroll - Expenses) in INR
     const accrualProfit = totalContractValue - teamPayrollCommitted - totalExpenses;
     const accrualMargin = totalContractValue > 0 ? (accrualProfit / totalContractValue) * 100 : 0;
 
-    // Cash Financials (Cash In - Cash Out)
+    // Cash Financials (Cash In - Cash Out) in INR
     const netProfit = totalRevenue - teamPayrollPaid - totalExpenses;
     const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
+    // Original Currency Breakdown
+    const inrProjects = projects.filter((p) => p.currency === 'INR');
+    const usdProjects = projects.filter((p) => p.currency === 'USD');
+
+    const inrPaidPayments = paidPayments.filter((p) => p.currency === 'INR');
+    const usdPaidPayments = paidPayments.filter((p) => p.currency === 'USD');
+
+    const inrRevenue = inrPaidPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const usdRevenue = usdPaidPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const usdRevenueInr = usdPaidPayments.reduce((sum, p) => {
+      if (p.inrAmount !== undefined && p.inrAmount !== null) return sum + p.inrAmount;
+      const rate = p.exchangeRate || 88;
+      return sum + Math.round(p.amount * rate);
+    }, 0);
+
+    const currencyBreakdown = {
+      inr: {
+        contractValue: inrProjects.reduce((sum, p) => sum + (p.projectValue || 0), 0),
+        received: inrRevenue,
+        pending: Math.max(0, inrProjects.reduce((sum, p) => sum + (p.projectValue || 0), 0) - inrRevenue),
+      },
+      usd: {
+        contractValue: usdProjects.reduce((sum, p) => sum + (p.projectValue || 0), 0),
+        received: usdRevenue,
+        pending: Math.max(0, usdProjects.reduce((sum, p) => sum + (p.projectValue || 0), 0) - usdRevenue),
+        inrEquivalentReceived: usdRevenueInr,
+      },
+      totalInrRevenue: totalRevenue,
+    };
 
     const activeProjects = projects.filter((p) => p.status === 'active');
     const completedProjects = projects.filter((p) => p.status === 'completed');
 
-    // Recent projects with progress and profit
+    // Recent projects with progress and finances
     const recentProjects = await Promise.all(
       projects.slice(0, 5).map(async (project) => {
         const tasks = await Task.find({ project: project._id });
@@ -183,6 +234,7 @@ export const getDashboardSummary = async (req: AuthRequest, res: Response): Prom
       success: true,
       role: 'admin',
       cards: {
+        currency: 'INR',
         totalClients: clientsCount,
         activeProjects: activeProjects.length,
         completedProjects: completedProjects.length,
@@ -199,6 +251,7 @@ export const getDashboardSummary = async (req: AuthRequest, res: Response): Prom
         accrualProfit,
         accrualMargin: Number(accrualMargin.toFixed(1)),
       },
+      currencyBreakdown,
       recentProjects,
     });
   } catch (error: any) {
@@ -212,26 +265,82 @@ export const getRevenueChart = async (req: AuthRequest, res: Response): Promise<
     const expenses = await Expense.find().sort({ date: 1 });
     const milestones = await PayrollMilestone.find({ status: 'paid' }).sort({ paidDate: 1 });
 
-    // Group by month YYYY-MM
-    const monthsMap: { [key: string]: { month: string; revenue: number; expenses: number; payroll: number; profit: number } } = {};
+    const monthsMap: {
+      [key: string]: {
+        month: string;
+        revenue: number;
+        inrRevenue: number;
+        usdRevenueOriginal: number;
+        usdRevenueInr: number;
+        expenses: number;
+        payroll: number;
+        profit: number;
+      };
+    } = {};
 
     const months = ['2024-10', '2024-11', '2024-12', '2025-01', '2025-02', '2025-03', '2025-04'];
     months.forEach((m) => {
-      monthsMap[m] = { month: m, revenue: 0, expenses: 0, payroll: 0, profit: 0 };
+      monthsMap[m] = {
+        month: m,
+        revenue: 0,
+        inrRevenue: 0,
+        usdRevenueOriginal: 0,
+        usdRevenueInr: 0,
+        expenses: 0,
+        payroll: 0,
+        profit: 0,
+      };
     });
 
     payments.forEach((p) => {
       if (p.paymentDate) {
         const m = p.paymentDate.toISOString().slice(0, 7);
-        if (!monthsMap[m]) monthsMap[m] = { month: m, revenue: 0, expenses: 0, payroll: 0, profit: 0 };
-        monthsMap[m].revenue += p.amount;
+        if (!monthsMap[m]) {
+          monthsMap[m] = {
+            month: m,
+            revenue: 0,
+            inrRevenue: 0,
+            usdRevenueOriginal: 0,
+            usdRevenueInr: 0,
+            expenses: 0,
+            payroll: 0,
+            profit: 0,
+          };
+        }
+
+        const paymentInr =
+          p.inrAmount !== undefined && p.inrAmount !== null
+            ? p.inrAmount
+            : p.currency === 'USD'
+            ? Math.round(p.amount * (p.exchangeRate || 88))
+            : p.amount;
+
+        monthsMap[m].revenue += paymentInr;
+
+        if (p.currency === 'USD') {
+          monthsMap[m].usdRevenueOriginal += p.amount;
+          monthsMap[m].usdRevenueInr += paymentInr;
+        } else {
+          monthsMap[m].inrRevenue += paymentInr;
+        }
       }
     });
 
     expenses.forEach((e) => {
       if (e.date) {
         const m = e.date.toISOString().slice(0, 7);
-        if (!monthsMap[m]) monthsMap[m] = { month: m, revenue: 0, expenses: 0, payroll: 0, profit: 0 };
+        if (!monthsMap[m]) {
+          monthsMap[m] = {
+            month: m,
+            revenue: 0,
+            inrRevenue: 0,
+            usdRevenueOriginal: 0,
+            usdRevenueInr: 0,
+            expenses: 0,
+            payroll: 0,
+            profit: 0,
+          };
+        }
         monthsMap[m].expenses += e.amount;
       }
     });
@@ -239,7 +348,18 @@ export const getRevenueChart = async (req: AuthRequest, res: Response): Promise<
     milestones.forEach((m) => {
       if (m.paidDate) {
         const key = m.paidDate.toISOString().slice(0, 7);
-        if (!monthsMap[key]) monthsMap[key] = { month: key, revenue: 0, expenses: 0, payroll: 0, profit: 0 };
+        if (!monthsMap[key]) {
+          monthsMap[key] = {
+            month: key,
+            revenue: 0,
+            inrRevenue: 0,
+            usdRevenueOriginal: 0,
+            usdRevenueInr: 0,
+            expenses: 0,
+            payroll: 0,
+            profit: 0,
+          };
+        }
         monthsMap[key].payroll += m.amount;
       }
     });
@@ -251,7 +371,7 @@ export const getRevenueChart = async (req: AuthRequest, res: Response): Promise<
         profit: item.revenue - item.payroll - item.expenses,
       }));
 
-    res.json({ success: true, chartData });
+    res.json({ success: true, currency: 'INR', chartData });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message || 'Failed to fetch revenue chart' });
   }
@@ -259,7 +379,7 @@ export const getRevenueChart = async (req: AuthRequest, res: Response): Promise<
 
 export const getProjectProfitabilityChart = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const projects = await Project.find().select('name projectId projectValue');
+    const projects = await Project.find().select('name projectId currency projectValue estimatedExchangeRate estimatedInrValue');
 
     const projectProfits = await Promise.all(
       projects.map(async (project) => {
@@ -267,8 +387,10 @@ export const getProjectProfitabilityChart = async (req: AuthRequest, res: Respon
         return {
           name: project.name,
           projectId: project.projectId,
-          contractValue: finances?.contractValue || 0,
-          revenue: finances?.clientReceived || 0,
+          currency: project.currency || 'INR',
+          originalValue: project.projectValue || 0,
+          contractValue: finances?.estimatedInrValue || 0,
+          revenue: finances?.clientReceivedInr || 0,
           teamPayroll: finances?.teamPayrollCommitted || 0,
           expenses: finances?.expenses || 0,
           profit: finances?.expectedProfit || 0,
@@ -277,7 +399,7 @@ export const getProjectProfitabilityChart = async (req: AuthRequest, res: Respon
       })
     );
 
-    res.json({ success: true, projectProfits });
+    res.json({ success: true, currency: 'INR', projectProfits });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message || 'Failed to fetch profitability chart' });
   }

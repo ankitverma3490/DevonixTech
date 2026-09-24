@@ -11,6 +11,8 @@ import {
   Trash2,
   Edit2,
   Building,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import { RootState, AppDispatch } from '../store/index.js';
 import {
@@ -30,8 +32,11 @@ import { ConfirmModal } from '../components/common/ConfirmModal.js';
 import { Badge } from '../components/common/Badge.js';
 import { LoadingSpinner } from '../components/common/LoadingSpinner.js';
 import { EmptyState } from '../components/common/EmptyState.js';
-import { formatCurrency, formatDate } from '../utils/formatters.js';
-import { IClientPayment } from '../types/index.js';
+import { CurrencySelector } from '../components/common/CurrencySelector.js';
+import { ExchangeRateInput } from '../components/common/ExchangeRateInput.js';
+import { INRAmountDisplay } from '../components/common/INRAmountDisplay.js';
+import { formatCurrency, formatINR, formatUSD, formatExchangeRate, formatDate } from '../utils/formatters.js';
+import { IClientPayment, Currency, ClientPaymentStatus } from '../types/index.js';
 
 export const Payments: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -43,6 +48,7 @@ export const Payments: React.FC = () => {
   const [projectFilter, setProjectFilter] = useState('all');
   const [clientFilter, setClientFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [currencyFilter, setCurrencyFilter] = useState('all');
 
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -50,13 +56,27 @@ export const Payments: React.FC = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Form State
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    project: string;
+    client: string;
+    currency: Currency;
+    amount: number;
+    exchangeRate: number;
+    dueDate: string;
+    paymentDate: string;
+    status: ClientPaymentStatus;
+    paymentMethod: string;
+    transactionId: string;
+    notes: string;
+  }>({
     project: '',
     client: '',
+    currency: 'USD',
     amount: 5000,
+    exchangeRate: 88,
     dueDate: new Date().toISOString().slice(0, 10),
     paymentDate: new Date().toISOString().slice(0, 10),
-    status: 'paid' as any,
+    status: 'paid',
     paymentMethod: 'stripe',
     transactionId: '',
     notes: '',
@@ -80,14 +100,20 @@ export const Payments: React.FC = () => {
 
   const handleOpenCreate = () => {
     setEditingPayment(null);
+    const firstProj = projects[0];
+    const defaultCurrency: Currency = firstProj?.currency || 'USD';
+    const defaultRate = defaultCurrency === 'INR' ? 1 : firstProj?.estimatedExchangeRate || 88;
+
     setFormData({
-      project: projects[0]?._id || '',
-      client: clients[0]?._id || '',
+      project: firstProj?._id || '',
+      client: (typeof firstProj?.client === 'object' ? firstProj?.client?._id : firstProj?.client) || clients[0]?._id || '',
+      currency: defaultCurrency,
       amount: 5000,
+      exchangeRate: defaultRate,
       dueDate: new Date().toISOString().slice(0, 10),
       paymentDate: new Date().toISOString().slice(0, 10),
       status: 'paid',
-      paymentMethod: 'stripe',
+      paymentMethod: defaultCurrency === 'USD' ? 'wire' : 'bank_transfer',
       transactionId: `INV-TXN-${Math.floor(1000 + Math.random() * 9000)}`,
       notes: '',
     });
@@ -96,10 +122,15 @@ export const Payments: React.FC = () => {
 
   const handleOpenEdit = (p: IClientPayment) => {
     setEditingPayment(p);
+    const pCurrency: Currency = p.currency || 'USD';
+    const pRate = p.exchangeRate || (pCurrency === 'INR' ? 1 : 88);
+
     setFormData({
       project: (p.project as any)?._id || (p.project as string),
       client: (p.client as any)?._id || (p.client as string),
+      currency: pCurrency,
       amount: p.amount,
+      exchangeRate: pRate,
       dueDate: p.dueDate ? new Date(p.dueDate).toISOString().slice(0, 10) : '',
       paymentDate: p.paymentDate ? new Date(p.paymentDate).toISOString().slice(0, 10) : '',
       status: p.status,
@@ -110,8 +141,29 @@ export const Payments: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  // When selecting project in modal, auto-populate client and currency if not set
+  const handleProjectSelect = (projId: string) => {
+    const selected = projects.find((p) => p._id === projId);
+    if (selected) {
+      const pCurr: Currency = selected.currency || 'USD';
+      const cId = typeof selected.client === 'object' ? (selected.client as any)?._id : selected.client;
+      setFormData((prev) => ({
+        ...prev,
+        project: projId,
+        client: cId || prev.client,
+        currency: pCurr,
+        exchangeRate: pCurr === 'INR' ? 1 : selected.estimatedExchangeRate || 88,
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, project: projId }));
+    }
+  };
+
   const handleSavePayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    const rate = formData.currency === 'INR' ? 1 : Number(formData.exchangeRate || 1);
+    const inrAmt = Number(formData.amount) * rate;
+
     if (editingPayment) {
       await dispatch(
         updatePayment({
@@ -119,6 +171,8 @@ export const Payments: React.FC = () => {
           data: {
             ...formData,
             amount: Number(formData.amount),
+            exchangeRate: rate,
+            inrAmount: inrAmt,
           },
         })
       );
@@ -127,6 +181,8 @@ export const Payments: React.FC = () => {
         createPayment({
           ...formData,
           amount: Number(formData.amount),
+          exchangeRate: rate,
+          inrAmount: inrAmt,
         })
       );
     }
@@ -153,14 +209,33 @@ export const Payments: React.FC = () => {
     loadPayments();
   };
 
-  // Aggregates
-  const totalReceived = payments
+  // Filtered Payments
+  const filteredPayments = payments.filter((p) => {
+    if (currencyFilter !== 'all' && (p.currency || 'USD') !== currencyFilter) {
+      return false;
+    }
+    return true;
+  });
+
+  // Calculate INR Reporting Base Aggregates using stored payment INR amounts
+  const totalInrReceived = filteredPayments
     .filter((p) => p.status === 'paid')
-    .reduce((sum, p) => sum + (p.amount || 0), 0);
-  const totalPending = payments
+    .reduce((sum, p) => sum + (p.inrAmount ?? (p.currency === 'USD' ? p.amount * (p.exchangeRate || 88) : p.amount)), 0);
+
+  const totalInrPending = filteredPayments
     .filter((p) => p.status !== 'paid')
+    .reduce((sum, p) => sum + (p.inrAmount ?? (p.currency === 'USD' ? p.amount * (p.exchangeRate || 88) : p.amount)), 0);
+
+  const totalInrInvoiced = totalInrReceived + totalInrPending;
+
+  // Currency breakdown for UI insight
+  const usdReceived = filteredPayments
+    .filter((p) => p.status === 'paid' && p.currency === 'USD')
     .reduce((sum, p) => sum + (p.amount || 0), 0);
-  const totalInvoiced = totalReceived + totalPending;
+
+  const inrDirectReceived = filteredPayments
+    .filter((p) => p.status === 'paid' && p.currency === 'INR')
+    .reduce((sum, p) => sum + (p.amount || 0), 0);
 
   const isAdmin = user?.role === 'admin';
 
@@ -169,9 +244,14 @@ export const Payments: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-white tracking-tight">Client Payments</h2>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-2xl font-extrabold text-white tracking-tight">Client Inflow Payments</h2>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              Reporting Base: INR (₹)
+            </span>
+          </div>
           <p className="text-xs text-slate-400 mt-1">
-            Track client invoices, retainer collections, and payment receivables across projects
+            Track multi-currency client payments with locked historical exchange rates consolidated into base INR
           </p>
         </div>
         {isAdmin && (
@@ -181,63 +261,77 @@ export const Payments: React.FC = () => {
         )}
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards (Consolidated in Base INR) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <Card className="border-l-4 border-l-blue-500">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Invoiced
+                Total Invoiced (INR Base)
               </p>
               <h3 className="text-2xl font-extrabold text-white mt-1">
-                {formatCurrency(totalInvoiced)}
+                {formatINR(totalInrInvoiced)}
               </h3>
             </div>
-            <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400">
-              <DollarSign className="w-5 h-5" />
+            <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400 font-bold text-lg">
+              ₹
             </div>
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">{payments.length} Payment records</p>
+          <p className="text-[11px] text-slate-400 mt-3">{filteredPayments.length} Payment records</p>
         </Card>
 
         <Card className="border-l-4 border-l-emerald-500">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Collected Revenue
+                Actual Collected (INR Base)
               </p>
               <h3 className="text-2xl font-extrabold text-emerald-400 mt-1">
-                {formatCurrency(totalReceived)}
+                {formatINR(totalInrReceived)}
               </h3>
             </div>
             <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400">
               <CheckCircle2 className="w-5 h-5" />
             </div>
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">Deposited to agency accounts</p>
+          <div className="text-[11px] text-slate-400 mt-3 flex flex-wrap gap-2">
+            {usdReceived > 0 && <span>USD: <strong className="text-slate-200">{formatUSD(usdReceived)}</strong></span>}
+            {usdReceived > 0 && inrDirectReceived > 0 && <span>•</span>}
+            {inrDirectReceived > 0 && <span>INR: <strong className="text-slate-200">{formatINR(inrDirectReceived)}</strong></span>}
+          </div>
         </Card>
 
         <Card className="border-l-4 border-l-amber-500">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Pending Receivables
+                Pending Receivables (INR Base)
               </p>
               <h3 className="text-2xl font-extrabold text-amber-400 mt-1">
-                {formatCurrency(totalPending)}
+                {formatINR(totalInrPending)}
               </h3>
             </div>
             <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400">
               <Clock className="w-5 h-5" />
             </div>
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">Outstanding client balances</p>
+          <p className="text-[11px] text-slate-400 mt-3">Outstanding receivables across clients</p>
         </Card>
       </div>
 
       {/* Filters Bar */}
       <Card className="p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <Select
+            label="Filter by Currency"
+            value={currencyFilter}
+            onChange={(e) => setCurrencyFilter(e.target.value)}
+            options={[
+              { value: 'all', label: 'All Currencies' },
+              { value: 'INR', label: 'INR (₹) Payments' },
+              { value: 'USD', label: 'USD ($) Payments' },
+            ]}
+          />
           <Select
             label="Filter by Project"
             value={projectFilter}
@@ -262,7 +356,7 @@ export const Payments: React.FC = () => {
             onChange={(e) => setStatusFilter(e.target.value)}
             options={[
               { value: 'all', label: 'All Statuses' },
-              { value: 'paid', label: 'Paid' },
+              { value: 'paid', label: 'Paid / Received' },
               { value: 'pending', label: 'Pending' },
               { value: 'overdue', label: 'Overdue' },
             ]}
@@ -273,11 +367,11 @@ export const Payments: React.FC = () => {
       {/* Payments Table */}
       {isLoading ? (
         <LoadingSpinner message="Loading client payments..." />
-      ) : payments.length === 0 ? (
+      ) : filteredPayments.length === 0 ? (
         <EmptyState
           icon={<CreditCard className="w-8 h-8 text-indigo-400" />}
-          title="No client payments recorded"
-          description="Record client retainer deposits and milestone payments."
+          title="No client payments found"
+          description="Record client retainer deposits and milestone payments in INR or USD."
           actionText={isAdmin ? 'Record Client Payment' : undefined}
           onAction={isAdmin ? handleOpenCreate : undefined}
         />
@@ -288,18 +382,24 @@ export const Payments: React.FC = () => {
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-900/80 text-slate-400 uppercase tracking-wider font-semibold">
                   <th className="py-3.5 px-6">Client & Project</th>
-                  <th className="py-3.5 px-4 text-right">Amount</th>
+                  <th className="py-3.5 px-4 text-right">Original Amount</th>
+                  <th className="py-3.5 px-3">Currency</th>
+                  <th className="py-3.5 px-3">Exchange Rate</th>
+                  <th className="py-3.5 px-4 text-right">INR Equivalent</th>
                   <th className="py-3.5 px-4">Due Date</th>
                   <th className="py-3.5 px-4">Paid Date</th>
-                  <th className="py-3.5 px-4">Payment Method</th>
+                  <th className="py-3.5 px-4">Method & Trans.</th>
                   <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-6 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {payments.map((p) => {
+                {filteredPayments.map((p) => {
                   const clientObj = typeof p.client === 'object' ? p.client : null;
                   const projectObj = typeof p.project === 'object' ? p.project : null;
+                  const pCurrency: Currency = p.currency || 'USD';
+                  const pRate = p.exchangeRate || (pCurrency === 'INR' ? 1 : 88);
+                  const pInr = p.inrAmount ?? (pCurrency === 'USD' ? p.amount * pRate : p.amount);
 
                   return (
                     <tr key={p._id} className="hover:bg-slate-800/40 transition-colors">
@@ -311,9 +411,31 @@ export const Payments: React.FC = () => {
                           {projectObj?.name} (
                           <span className="font-mono">{projectObj?.projectId}</span>)
                         </div>
+                        {p.requiresExchangeRateUpdate && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded mt-1 border border-amber-500/20 font-semibold">
+                            <AlertTriangle className="w-3 h-3" /> Needs Rate Confirmation
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-4 px-4 text-right font-extrabold text-white text-sm">
+                        {formatCurrency(p.amount, pCurrency)}
+                      </td>
+                      <td className="py-4 px-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            pCurrency === 'USD'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                          }`}
+                        >
+                          {pCurrency}
+                        </span>
+                      </td>
+                      <td className="py-4 px-3 text-slate-300 font-mono text-[11px]">
+                        {pCurrency === 'USD' ? formatExchangeRate(pRate) : '1.00 (Base)'}
                       </td>
                       <td className="py-4 px-4 text-right font-extrabold text-emerald-400 text-sm">
-                        {formatCurrency(p.amount)}
+                        {formatINR(pInr)}
                       </td>
                       <td className="py-4 px-4 text-slate-400">{formatDate(p.dueDate)}</td>
                       <td className="py-4 px-4 text-slate-300">{formatDate(p.paymentDate)}</td>
@@ -347,7 +469,7 @@ export const Payments: React.FC = () => {
                               <button
                                 onClick={() => handleOpenEdit(p)}
                                 className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
-                                title="Edit"
+                                title="Edit Payment & Rate"
                               >
                                 <Edit2 className="w-4 h-4" />
                               </button>
@@ -371,31 +493,75 @@ export const Payments: React.FC = () => {
         </Card>
       )}
 
-      {/* Record Payment Modal */}
+      {/* Record / Edit Payment Modal */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingPayment ? 'Edit Payment Record' : 'Record Client Payment'}
-        maxWidth="md"
+        title={editingPayment ? 'Edit Client Payment & Exchange Rate' : 'Record Client Inflow Payment'}
+        maxWidth="lg"
       >
         <form onSubmit={handleSavePayment} className="space-y-4">
-          <Select
-            label="Project"
-            required
-            value={formData.project}
-            onChange={(e) => setFormData({ ...formData, project: e.target.value })}
-            options={projects.map((p) => ({ value: p._id, label: `${p.name} (${p.projectId})` }))}
-            placeholder="Select Project"
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Select
+              label="Project"
+              required
+              value={formData.project}
+              onChange={(e) => handleProjectSelect(e.target.value)}
+              options={projects.map((p) => ({
+                value: p._id,
+                label: `${p.name} (${p.projectId}) [${p.currency || 'USD'}]`,
+              }))}
+              placeholder="Select Project"
+            />
+            <Select
+              label="Client"
+              required
+              value={formData.client}
+              onChange={(e) => setFormData({ ...formData, client: e.target.value })}
+              options={clients.map((c) => ({ value: c._id, label: c.companyName }))}
+              placeholder="Select Client"
+            />
+          </div>
 
-          <Input
-            label="Payment Amount ($)"
-            type="number"
-            required
-            min={0}
-            value={formData.amount}
-            onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <CurrencySelector
+              value={formData.currency}
+              onChange={(cur) => {
+                setFormData({
+                  ...formData,
+                  currency: cur,
+                  exchangeRate: cur === 'INR' ? 1 : 88,
+                });
+              }}
+              label="Payment Currency"
+            />
+            <Input
+              label={`Payment Amount (${formData.currency})`}
+              type="number"
+              required
+              min={0}
+              value={formData.amount}
+              onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
+            />
+          </div>
+
+          {formData.currency === 'USD' && (
+            <div className="space-y-3 bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
+              <ExchangeRateInput
+                value={formData.exchangeRate}
+                onChange={(rate) => setFormData({ ...formData, exchangeRate: rate })}
+                originalAmount={formData.amount}
+                label="Transaction USD → INR Exchange Rate"
+                helperText="Permanent historical rate for this payment. It will NOT fluctuate with future rates."
+              />
+              <INRAmountDisplay
+                inrAmount={formData.amount * formData.exchangeRate}
+                originalAmount={formData.amount}
+                originalCurrency="USD"
+                exchangeRate={formData.exchangeRate}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
@@ -414,8 +580,8 @@ export const Payments: React.FC = () => {
               onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
               options={[
                 { value: 'stripe', label: 'Stripe' },
-                { value: 'wire', label: 'Wire Transfer' },
-                { value: 'bank_transfer', label: 'Bank Transfer' },
+                { value: 'wire', label: 'Wire Transfer / Swift' },
+                { value: 'bank_transfer', label: 'Bank Transfer (NEFT/IMPS/UPI)' },
                 { value: 'paypal', label: 'PayPal' },
                 { value: 'card', label: 'Credit Card' },
               ]}
@@ -439,7 +605,7 @@ export const Payments: React.FC = () => {
           </div>
 
           <Input
-            label="Transaction ID / Invoice ID"
+            label="Transaction ID / Wire Reference / Invoice ID"
             value={formData.transactionId}
             onChange={(e) => setFormData({ ...formData, transactionId: e.target.value })}
             placeholder="INV-PAID-001"
@@ -454,7 +620,7 @@ export const Payments: React.FC = () => {
               className="w-full rounded-lg bg-slate-900/80 border border-slate-700/80 text-slate-100 text-sm px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="e.g. 50% Upfront kickoff deposit"
+              placeholder="e.g. 50% Kickoff milestone or upfront retainer"
             />
           </div>
 
@@ -463,7 +629,7 @@ export const Payments: React.FC = () => {
               Cancel
             </Button>
             <Button type="submit" variant="primary">
-              {editingPayment ? 'Save Changes' : 'Record Payment'}
+              {editingPayment ? 'Save Payment Record' : 'Record Payment'}
             </Button>
           </div>
         </form>

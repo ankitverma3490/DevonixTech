@@ -6,6 +6,7 @@ const PayrollSchema = new Schema<IPayroll>(
     project: { type: Schema.Types.ObjectId, ref: 'Project', required: true },
     teamMember: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     role: { type: String, required: true, trim: true },
+    currency: { type: String, default: 'INR', enum: ['INR'], required: true },
     agreedAmount: { type: Number, required: true, min: 0 },
     paymentType: {
       type: String,

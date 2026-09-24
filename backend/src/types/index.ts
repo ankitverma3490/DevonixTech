@@ -58,6 +58,8 @@ export interface IClient {
   updatedAt: Date;
 }
 
+export type Currency = 'INR' | 'USD';
+
 export interface IProject {
   _id: Types.ObjectId;
   name: string;
@@ -70,7 +72,10 @@ export interface IProject {
   actualEndDate?: Date;
   status: ProjectStatus;
   priority: PriorityLevel;
-  projectValue: number;
+  currency: Currency;
+  projectValue: number; // Value in original currency
+  estimatedExchangeRate: number; // e.g. 88 for USD, 1 for INR
+  estimatedInrValue: number; // projectValue * estimatedExchangeRate
   projectManager: Types.ObjectId | IUser;
   technologies: string[];
   notes?: string;
@@ -83,10 +88,11 @@ export interface IPayroll {
   project: Types.ObjectId | IProject;
   teamMember: Types.ObjectId | IUser;
   role: string;
-  agreedAmount: number;
+  currency: 'INR';
+  agreedAmount: number; // Always in INR
   paymentType: PaymentType;
-  totalPaid: number;
-  pendingAmount: number;
+  totalPaid: number; // Always in INR
+  pendingAmount: number; // Always in INR
   status: 'pending' | 'partially_paid' | 'paid';
   createdAt: Date;
   updatedAt: Date;
@@ -98,7 +104,8 @@ export interface IPayrollMilestone {
   project: Types.ObjectId | IProject;
   teamMember: Types.ObjectId | IUser;
   title: string;
-  amount: number;
+  currency: 'INR';
+  amount: number; // Always in INR
   dueDate: Date;
   paidDate?: Date;
   status: MilestoneStatus;
@@ -126,7 +133,11 @@ export interface IClientPayment {
   _id: Types.ObjectId;
   project: Types.ObjectId | IProject;
   client: Types.ObjectId | IClient;
-  amount: number;
+  currency: Currency;
+  amount: number; // Amount in original currency (e.g. USD or INR)
+  exchangeRate: number; // Stored transaction exchange rate (1 for INR, e.g. 88 for USD)
+  inrAmount: number; // amount * exchangeRate
+  requiresExchangeRateUpdate?: boolean; // Flag for legacy records requiring exchange rate review
   paymentDate?: Date;
   dueDate: Date;
   paymentMethod?: string;
@@ -142,7 +153,8 @@ export interface IExpense {
   project?: Types.ObjectId | IProject;
   name: string;
   category: ExpenseCategory;
-  amount: number;
+  currency: 'INR';
+  amount: number; // Always in INR
   date: Date;
   paymentMethod?: string;
   description?: string;

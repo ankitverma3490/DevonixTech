@@ -1,11 +1,100 @@
-export const formatCurrency = (amount: number | undefined | null): string => {
-  if (amount === undefined || amount === null || isNaN(amount)) return '$0';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
+import { Currency } from '../types/index.js';
+import { CURRENCY_CONFIG } from './currency.js';
+
+/**
+ * Formats monetary amounts according to currency specifications
+ * Supports both INR (₹ en-IN) and USD ($ en-US)
+ */
+export const formatCurrency = (
+  amount: number | undefined | null,
+  currency: Currency = 'INR',
+  options: { showDecimals?: boolean; compact?: boolean } = {}
+): string => {
+  if (amount === undefined || amount === null || isNaN(amount)) {
+    return currency === 'USD' ? '$0' : '₹0';
+  }
+
+  const num = Number(amount);
+  const config = CURRENCY_CONFIG[currency] || CURRENCY_CONFIG.INR;
+
+  if (options.compact && Math.abs(num) >= 1000) {
+    if (currency === 'INR') {
+      if (Math.abs(num) >= 10000000) {
+        return `₹${(num / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
+      }
+      if (Math.abs(num) >= 100000) {
+        return `₹${(num / 100000).toFixed(2).replace(/\.00$/, '')} L`;
+      }
+      if (Math.abs(num) >= 1000) {
+        return `₹${(num / 1000).toFixed(1).replace(/\.0$/, '')} K`;
+      }
+    } else {
+      if (Math.abs(num) >= 1000000) {
+        return `$${(num / 1000000).toFixed(2).replace(/\.00$/, '')}M`;
+      }
+      if (Math.abs(num) >= 1000) {
+        return `$${(num / 1000).toFixed(1).replace(/\.0$/, '')}K`;
+      }
+    }
+  }
+
+  const fractionDigits = options.showDecimals ? 2 : 0;
+
+  try {
+    return new Intl.NumberFormat(config.locale, {
+      style: 'currency',
+      currency: config.code,
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    }).format(num);
+  } catch {
+    const symbol = config.symbol || (currency === 'USD' ? '$' : '₹');
+    return `${symbol}${num.toLocaleString()}`;
+  }
+};
+
+/**
+ * Formats amount explicitly in Indian Rupee (₹ Base Reporting Currency)
+ */
+export const formatINR = (
+  amount: number | undefined | null,
+  options?: { showDecimals?: boolean; compact?: boolean }
+): string => {
+  return formatCurrency(amount, 'INR', options);
+};
+
+/**
+ * Formats amount explicitly in US Dollar ($)
+ */
+export const formatUSD = (
+  amount: number | undefined | null,
+  options?: { showDecimals?: boolean; compact?: boolean }
+): string => {
+  return formatCurrency(amount, 'USD', options);
+};
+
+/**
+ * Formats exchange rates (e.g. ₹88.00 / USD)
+ */
+export const formatExchangeRate = (rate: number | undefined | null): string => {
+  if (rate === undefined || rate === null || isNaN(rate)) return '₹88.00';
+  return `₹${Number(rate).toFixed(2)}`;
+};
+
+/**
+ * Dual display formatting (e.g. "$5,000 USD (₹4,40,000 INR)")
+ */
+export const formatMoneyWithOriginal = (
+  amount: number | undefined | null,
+  currency: Currency = 'INR',
+  inrAmount?: number | null
+): string => {
+  const orig = formatCurrency(amount, currency);
+  if (currency === 'INR' || inrAmount === undefined || inrAmount === null) {
+    return orig;
+  }
+  const inrFormatted = formatINR(inrAmount);
+  return `${orig} (${inrFormatted})`;
 };
 
 export const formatDate = (dateStr: string | Date | undefined | null): string => {
@@ -13,7 +102,7 @@ export const formatDate = (dateStr: string | Date | undefined | null): string =>
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return 'N/A';
-    return d.toLocaleDateString('en-US', {
+    return d.toLocaleDateString('en-IN', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

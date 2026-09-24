@@ -19,6 +19,7 @@ const ExpenseSchema = new Schema<IExpense>(
       ],
       required: true,
     },
+    currency: { type: String, default: 'INR', enum: ['INR'], required: true },
     amount: { type: Number, required: true, min: 0 },
     date: { type: Date, required: true, default: Date.now },
     paymentMethod: {

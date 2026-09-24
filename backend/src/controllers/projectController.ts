@@ -10,7 +10,7 @@ import { AuthRequest } from '../types/index.js';
 
 export const getProjects = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { search, status, client, projectManager, priority } = req.query;
+    const { search, status, client, projectManager, priority, currency } = req.query;
     const filter: any = {};
 
     // Role-based visibility
@@ -22,6 +22,9 @@ export const getProjects = async (req: AuthRequest, res: Response): Promise<void
       filter._id = { $in: projectIds };
     }
 
+    if (currency && currency !== 'all') {
+      filter.currency = currency;
+    }
     if (status && status !== 'all') {
       filter.status = status;
     }
@@ -158,7 +161,9 @@ export const createProject = async (req: AuthRequest, res: Response): Promise<vo
       actualEndDate,
       status,
       priority,
+      currency,
       projectValue,
+      estimatedExchangeRate,
       projectManager,
       technologies,
       notes,
@@ -178,6 +183,11 @@ export const createProject = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
+    const curr = currency === 'USD' ? 'USD' : 'INR';
+    const rate = curr === 'INR' ? 1 : Number(estimatedExchangeRate) || 88;
+    const pValue = Number(projectValue);
+    const inrVal = curr === 'INR' ? pValue : Math.round(pValue * rate * 100) / 100;
+
     const project = new Project({
       name,
       projectId: projectId.toUpperCase().trim(),
@@ -189,7 +199,10 @@ export const createProject = async (req: AuthRequest, res: Response): Promise<vo
       actualEndDate,
       status: status || 'planning',
       priority: priority || 'medium',
-      projectValue: Number(projectValue),
+      currency: curr,
+      projectValue: pValue,
+      estimatedExchangeRate: rate,
+      estimatedInrValue: inrVal,
       projectManager,
       technologies: Array.isArray(technologies) ? technologies : typeof technologies === 'string' ? technologies.split(',').map((s: string) => s.trim()) : [],
       notes,
@@ -210,12 +223,45 @@ export const updateProject = async (req: AuthRequest, res: Response): Promise<vo
       req.body.technologies = req.body.technologies.split(',').map((s: string) => s.trim());
     }
 
-    const project = await Project.findByIdAndUpdate(id, req.body, { new: true, runValidators: true });
-
+    const project = await Project.findById(id);
     if (!project) {
       res.status(404).json({ success: false, message: 'Project not found' });
       return;
     }
+
+    // Handle currency updates
+    if (req.body.currency !== undefined) {
+      project.currency = req.body.currency === 'USD' ? 'USD' : 'INR';
+    }
+    if (req.body.projectValue !== undefined) {
+      project.projectValue = Number(req.body.projectValue);
+    }
+    if (req.body.estimatedExchangeRate !== undefined) {
+      project.estimatedExchangeRate = project.currency === 'INR' ? 1 : Number(req.body.estimatedExchangeRate) || 88;
+    } else if (project.currency === 'INR') {
+      project.estimatedExchangeRate = 1;
+    }
+
+    project.estimatedInrValue =
+      project.currency === 'INR'
+        ? project.projectValue
+        : Math.round(project.projectValue * (project.estimatedExchangeRate || 88) * 100) / 100;
+
+    // Apply remaining fields
+    if (req.body.name) project.name = req.body.name;
+    if (req.body.client) project.client = req.body.client;
+    if (req.body.description !== undefined) project.description = req.body.description;
+    if (req.body.projectType) project.projectType = req.body.projectType;
+    if (req.body.startDate) project.startDate = req.body.startDate;
+    if (req.body.expectedEndDate) project.expectedEndDate = req.body.expectedEndDate;
+    if (req.body.actualEndDate !== undefined) project.actualEndDate = req.body.actualEndDate;
+    if (req.body.status) project.status = req.body.status;
+    if (req.body.priority) project.priority = req.body.priority;
+    if (req.body.projectManager) project.projectManager = req.body.projectManager;
+    if (req.body.technologies) project.technologies = req.body.technologies;
+    if (req.body.notes !== undefined) project.notes = req.body.notes;
+
+    await project.save();
 
     res.json({ success: true, message: 'Project updated successfully', project });
   } catch (error: any) {

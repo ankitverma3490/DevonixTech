@@ -207,7 +207,7 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
 
     const [clientAcme, clientNova, clientApex, clientLuxe, clientQuant] = clients;
 
-    // 3. Create Projects
+    // 3. Create Projects (Mix of USD and INR)
     const projects = await Project.create([
       {
         name: 'Fintech Mobile Wallet & Web Portal',
@@ -219,10 +219,13 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         expectedEndDate: new Date('2025-05-30'),
         status: 'active',
         priority: 'urgent',
-        projectValue: 24000,
+        currency: 'USD',
+        projectValue: 24000, // $24,000 USD
+        estimatedExchangeRate: 88,
+        estimatedInrValue: 2112000, // ₹21,12,000 INR
         projectManager: pmSarah._id,
         technologies: ['React Native', 'Node.js', 'TypeScript', 'PostgreSQL', 'Stripe API', 'Tailwind'],
-        notes: 'Key client project with aggressive Q2 launch milestone.',
+        notes: 'Key US client project billed in USD.',
       },
       {
         name: 'Telehealth Patient Portal & Video Consult',
@@ -234,10 +237,13 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         expectedEndDate: new Date('2025-06-15'),
         status: 'active',
         priority: 'high',
-        projectValue: 18500,
+        currency: 'USD',
+        projectValue: 18500, // $18,500 USD
+        estimatedExchangeRate: 88.5,
+        estimatedInrValue: 1637250, // ₹16,37,250 INR
         projectManager: pmAlex._id,
         technologies: ['Next.js', 'WebRTC', 'Node.js', 'MongoDB', 'AWS S3', 'Twilio'],
-        notes: 'Requires rigorous security audits and zero-latency video streaming.',
+        notes: 'UK healthcare provider billed in USD with dedicated HIPAA compliance.',
       },
       {
         name: 'Smart Warehouse Logistics Dashboard',
@@ -249,10 +255,13 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         expectedEndDate: new Date('2025-04-30'),
         status: 'active',
         priority: 'medium',
-        projectValue: 32000,
+        currency: 'INR',
+        projectValue: 2500000, // ₹25,00,000 INR
+        estimatedExchangeRate: 1,
+        estimatedInrValue: 2500000,
         projectManager: pmSarah._id,
         technologies: ['React', 'TypeScript', 'Go', 'Docker', 'Redis', 'Kafka'],
-        notes: 'Long-term enterprise contract with potential phase 2 expansion.',
+        notes: 'Domestic enterprise logistics contract billed in INR.',
       },
       {
         name: 'Headless Luxury E-Commerce Platform',
@@ -265,7 +274,10 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         actualEndDate: new Date('2025-01-18'),
         status: 'completed',
         priority: 'medium',
-        projectValue: 12000,
+        currency: 'INR',
+        projectValue: 1000000, // ₹10,00,000 INR
+        estimatedExchangeRate: 1,
+        estimatedInrValue: 1000000,
         projectManager: pmAlex._id,
         technologies: ['Next.js', 'Shopify Plus API', 'Three.js', 'Tailwind CSS', 'Vercel'],
         notes: 'Successfully delivered under budget with exceptional client satisfaction.',
@@ -280,7 +292,10 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         expectedEndDate: new Date('2025-08-30'),
         status: 'planning',
         priority: 'low',
-        projectValue: 15000,
+        currency: 'USD',
+        projectValue: 15000, // $15,000 USD
+        estimatedExchangeRate: 88,
+        estimatedInrValue: 1320000,
         projectManager: pmSarah._id,
         technologies: ['Python', 'FastAPI', 'React', 'OpenAI API', 'Pinecone'],
         notes: 'Discovery sprint concluding next week; kickoff scheduled for April.',
@@ -289,16 +304,17 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
 
     const [prj101, prj102, prj103, prj104, prj105] = projects;
 
-    // 4. Create Project Payrolls (Fixed Project Payments for Team Members)
-    // PRJ-101 (Value: 24,000) -> Total Team Payroll: 11,200
+    // 4. Create Project Payrolls (Always in INR)
+    // PRJ-101 (Fintech $24k USD / ~₹21.12L INR) -> Total Team Payroll: ₹9,10,000
     const payrollPRJ101Dev = await Payroll.create({
       project: prj101._id,
       teamMember: devDavid._id,
       role: 'Lead Frontend Developer',
-      agreedAmount: 4200,
+      currency: 'INR',
+      agreedAmount: 350000,
       paymentType: 'fixed',
-      totalPaid: 2100,
-      pendingAmount: 2100,
+      totalPaid: 175000,
+      pendingAmount: 175000,
       status: 'partially_paid',
     });
 
@@ -306,10 +322,11 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
       project: prj101._id,
       teamMember: mobileLiam._id,
       role: 'React Native Mobile Developer',
-      agreedAmount: 3500,
+      currency: 'INR',
+      agreedAmount: 280000,
       paymentType: 'fixed',
-      totalPaid: 1500,
-      pendingAmount: 2000,
+      totalPaid: 140000,
+      pendingAmount: 140000,
       status: 'partially_paid',
     });
 
@@ -317,9 +334,10 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
       project: prj101._id,
       teamMember: designerElena._id,
       role: 'UI/UX & Fintech Designer',
-      agreedAmount: 2000,
+      currency: 'INR',
+      agreedAmount: 160000,
       paymentType: 'fixed',
-      totalPaid: 2000,
+      totalPaid: 160000,
       pendingAmount: 0,
       status: 'paid',
     });
@@ -328,22 +346,24 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
       project: prj101._id,
       teamMember: qaPriya._id,
       role: 'QA & Security Tester',
-      agreedAmount: 1500,
+      currency: 'INR',
+      agreedAmount: 120000,
       paymentType: 'fixed',
       totalPaid: 0,
-      pendingAmount: 1500,
+      pendingAmount: 120000,
       status: 'pending',
     });
 
-    // PRJ-102 (Value: 18,500) -> Total Team Payroll: 8,800
+    // PRJ-102 (Telehealth $18.5k USD / ~₹16.37L INR) -> Total Team Payroll: ₹7,30,000
     const payrollPRJ102Back = await Payroll.create({
       project: prj102._id,
       teamMember: backMarcus._id,
       role: 'Backend & WebRTC Engineer',
-      agreedAmount: 3800,
+      currency: 'INR',
+      agreedAmount: 320000,
       paymentType: 'fixed',
-      totalPaid: 1900,
-      pendingAmount: 1900,
+      totalPaid: 160000,
+      pendingAmount: 160000,
       status: 'partially_paid',
     });
 
@@ -351,10 +371,11 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
       project: prj102._id,
       teamMember: devDavid._id,
       role: 'Full Stack Web Developer',
-      agreedAmount: 3200,
+      currency: 'INR',
+      agreedAmount: 260000,
       paymentType: 'fixed',
-      totalPaid: 1600,
-      pendingAmount: 1600,
+      totalPaid: 130000,
+      pendingAmount: 130000,
       status: 'partially_paid',
     });
 
@@ -362,22 +383,24 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
       project: prj102._id,
       teamMember: designerElena._id,
       role: 'Healthcare UX Designer',
-      agreedAmount: 1800,
+      currency: 'INR',
+      agreedAmount: 150000,
       paymentType: 'fixed',
-      totalPaid: 1800,
+      totalPaid: 150000,
       pendingAmount: 0,
       status: 'paid',
     });
 
-    // PRJ-103 (Value: 32,000) -> Total Team Payroll: 15,500
+    // PRJ-103 (Warehouse ₹25,00,000 INR) -> Total Team Payroll: ₹11,70,000
     const payrollPRJ103Back = await Payroll.create({
       project: prj103._id,
       teamMember: backMarcus._id,
       role: 'Lead Cloud & Distributed Systems',
-      agreedAmount: 6500,
+      currency: 'INR',
+      agreedAmount: 500000,
       paymentType: 'fixed',
-      totalPaid: 3250,
-      pendingAmount: 3250,
+      totalPaid: 250000,
+      pendingAmount: 250000,
       status: 'partially_paid',
     });
 
@@ -385,10 +408,11 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
       project: prj103._id,
       teamMember: devDavid._id,
       role: 'Frontend Dashboard Specialist',
-      agreedAmount: 5500,
+      currency: 'INR',
+      agreedAmount: 420000,
       paymentType: 'fixed',
-      totalPaid: 2750,
-      pendingAmount: 2750,
+      totalPaid: 210000,
+      pendingAmount: 210000,
       status: 'partially_paid',
     });
 
@@ -396,21 +420,23 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
       project: prj103._id,
       teamMember: qaPriya._id,
       role: 'Automation & Load Testing',
-      agreedAmount: 3500,
+      currency: 'INR',
+      agreedAmount: 250000,
       paymentType: 'fixed',
-      totalPaid: 1750,
-      pendingAmount: 1750,
+      totalPaid: 125000,
+      pendingAmount: 125000,
       status: 'partially_paid',
     });
 
-    // PRJ-104 (Completed, Value: 12,000) -> Total Team Payroll: 5,400 (Fully Paid)
+    // PRJ-104 (Completed, ₹10,00,000 INR) -> Total Team Payroll: ₹4,60,000 (Fully Paid)
     const payrollPRJ104Dev = await Payroll.create({
       project: prj104._id,
       teamMember: devDavid._id,
       role: 'Next.js & Shopify Engineer',
-      agreedAmount: 3200,
+      currency: 'INR',
+      agreedAmount: 280000,
       paymentType: 'fixed',
-      totalPaid: 3200,
+      totalPaid: 280000,
       pendingAmount: 0,
       status: 'paid',
     });
@@ -419,22 +445,24 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
       project: prj104._id,
       teamMember: designerElena._id,
       role: '3D & Brand Experience Designer',
-      agreedAmount: 2200,
+      currency: 'INR',
+      agreedAmount: 180000,
       paymentType: 'fixed',
-      totalPaid: 2200,
+      totalPaid: 180000,
       pendingAmount: 0,
       status: 'paid',
     });
 
-    // 5. Create Payroll Milestones
+    // 5. Create Payroll Milestones (Always in INR)
     await PayrollMilestone.create([
-      // PRJ-101 Milestones
+      // PRJ-101 Milestones (INR)
       {
         payroll: payrollPRJ101Dev._id,
         project: prj101._id,
         teamMember: devDavid._id,
         title: 'M1: Wallet Architecture & Auth Setup',
-        amount: 2100,
+        currency: 'INR',
+        amount: 175000,
         dueDate: new Date('2025-02-15'),
         paidDate: new Date('2025-02-14'),
         status: 'paid',
@@ -447,7 +475,8 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj101._id,
         teamMember: devDavid._id,
         title: 'M2: Crypto & Multi-Currency Settlement Integration',
-        amount: 2100,
+        currency: 'INR',
+        amount: 175000,
         dueDate: new Date('2025-04-10'),
         status: 'pending',
         notes: 'Triggered upon API integration completion.',
@@ -457,11 +486,12 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj101._id,
         teamMember: mobileLiam._id,
         title: 'M1: Core Mobile Screens & Biometrics',
-        amount: 1500,
+        currency: 'INR',
+        amount: 140000,
         dueDate: new Date('2025-02-28'),
         paidDate: new Date('2025-02-27'),
         status: 'paid',
-        paymentMethod: 'wise',
+        paymentMethod: 'bank_transfer',
         transactionId: 'TXN-PAY-88219',
         notes: 'Biometric passkey authentication approved.',
       },
@@ -470,7 +500,8 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj101._id,
         teamMember: mobileLiam._id,
         title: 'M2: App Store & Play Store Production Build',
-        amount: 2000,
+        currency: 'INR',
+        amount: 140000,
         dueDate: new Date('2025-05-15'),
         status: 'pending',
       },
@@ -479,7 +510,8 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj101._id,
         teamMember: designerElena._id,
         title: 'M1: Design System & Complete Figma Handoff',
-        amount: 2000,
+        currency: 'INR',
+        amount: 160000,
         dueDate: new Date('2025-02-05'),
         paidDate: new Date('2025-02-04'),
         status: 'paid',
@@ -492,18 +524,20 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj101._id,
         teamMember: qaPriya._id,
         title: 'M1: Security Vulnerability & End-to-End Suite',
-        amount: 1500,
+        currency: 'INR',
+        amount: 120000,
         dueDate: new Date('2025-05-20'),
         status: 'pending',
       },
 
-      // PRJ-102 Milestones
+      // PRJ-102 Milestones (INR)
       {
         payroll: payrollPRJ102Back._id,
         project: prj102._id,
         teamMember: backMarcus._id,
         title: 'M1: WebRTC Signaling Server & Telehealth DB',
-        amount: 1900,
+        currency: 'INR',
+        amount: 160000,
         dueDate: new Date('2025-03-01'),
         paidDate: new Date('2025-03-01'),
         status: 'paid',
@@ -515,7 +549,8 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj102._id,
         teamMember: backMarcus._id,
         title: 'M2: HIPAA Compliance Encryption & Video Recording',
-        amount: 1900,
+        currency: 'INR',
+        amount: 160000,
         dueDate: new Date('2025-05-01'),
         status: 'pending',
       },
@@ -524,11 +559,12 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj102._id,
         teamMember: devDavid._id,
         title: 'M1: Patient Dashboard & Doctor Scheduling',
-        amount: 1600,
+        currency: 'INR',
+        amount: 130000,
         dueDate: new Date('2025-03-10'),
         paidDate: new Date('2025-03-09'),
         status: 'paid',
-        paymentMethod: 'stripe',
+        paymentMethod: 'bank_transfer',
         transactionId: 'TXN-PAY-54112',
       },
       {
@@ -536,7 +572,8 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj102._id,
         teamMember: devDavid._id,
         title: 'M2: Prescriptions & EHR Integration',
-        amount: 1600,
+        currency: 'INR',
+        amount: 130000,
         dueDate: new Date('2025-05-25'),
         status: 'pending',
       },
@@ -545,7 +582,8 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj102._id,
         teamMember: designerElena._id,
         title: 'M1: Clinical & Patient Experience Prototype',
-        amount: 1800,
+        currency: 'INR',
+        amount: 150000,
         dueDate: new Date('2025-02-20'),
         paidDate: new Date('2025-02-18'),
         status: 'paid',
@@ -553,13 +591,14 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         transactionId: 'TXN-PAY-44129',
       },
 
-      // PRJ-103 Milestones
+      // PRJ-103 Milestones (INR)
       {
         payroll: payrollPRJ103Back._id,
         project: prj103._id,
         teamMember: backMarcus._id,
         title: 'M1: GPS Telemetry & Event Ingestion Pipeline',
-        amount: 3250,
+        currency: 'INR',
+        amount: 250000,
         dueDate: new Date('2025-01-15'),
         paidDate: new Date('2025-01-14'),
         status: 'paid',
@@ -571,7 +610,8 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj103._id,
         teamMember: backMarcus._id,
         title: 'M2: Automated Route Optimization Engine',
-        amount: 3250,
+        currency: 'INR',
+        amount: 250000,
         dueDate: new Date('2025-04-15'),
         status: 'pending',
       },
@@ -580,7 +620,8 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj103._id,
         teamMember: devDavid._id,
         title: 'M1: Real-time Dispatch Map & Telemetry UI',
-        amount: 2750,
+        currency: 'INR',
+        amount: 210000,
         dueDate: new Date('2025-01-20'),
         paidDate: new Date('2025-01-19'),
         status: 'paid',
@@ -592,7 +633,8 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj103._id,
         teamMember: devDavid._id,
         title: 'M2: Freight Billing & Analytics Dashboard',
-        amount: 2750,
+        currency: 'INR',
+        amount: 210000,
         dueDate: new Date('2025-04-20'),
         status: 'pending',
       },
@@ -601,11 +643,12 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj103._id,
         teamMember: qaPriya._id,
         title: 'M1: High Concurrency Load Testing',
-        amount: 1750,
+        currency: 'INR',
+        amount: 125000,
         dueDate: new Date('2025-01-30'),
         paidDate: new Date('2025-01-29'),
         status: 'paid',
-        paymentMethod: 'wise',
+        paymentMethod: 'bank_transfer',
         transactionId: 'TXN-PAY-11092',
       },
       {
@@ -613,18 +656,20 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj103._id,
         teamMember: qaPriya._id,
         title: 'M2: Automated Edge-Case Failover Tests',
-        amount: 1750,
+        currency: 'INR',
+        amount: 125000,
         dueDate: new Date('2025-04-25'),
         status: 'pending',
       },
 
-      // PRJ-104 Milestones (Fully Settled)
+      // PRJ-104 Milestones (Fully Settled in INR)
       {
         payroll: payrollPRJ104Dev._id,
         project: prj104._id,
         teamMember: devDavid._id,
         title: 'Full Platform Build & Launch Settlement',
-        amount: 3200,
+        currency: 'INR',
+        amount: 280000,
         dueDate: new Date('2025-01-18'),
         paidDate: new Date('2025-01-18'),
         status: 'paid',
@@ -636,7 +681,8 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj104._id,
         teamMember: designerElena._id,
         title: 'Luxury 3D Interaction Design Settlement',
-        amount: 2200,
+        currency: 'INR',
+        amount: 180000,
         dueDate: new Date('2025-01-18'),
         paidDate: new Date('2025-01-18'),
         status: 'paid',
@@ -782,137 +828,169 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
       },
     ]);
 
-    // 7. Create Client Payments (Invoices & Inflows)
+    // 7. Create Client Payments (Multi-Currency with Stored Exchange Rates)
     await ClientPayment.create([
-      // PRJ-101 (Value: 24,000)
+      // PRJ-101 (USD $24,000 Project)
       {
         project: prj101._id,
         client: clientAcme._id,
-        amount: 10000,
+        currency: 'USD',
+        amount: 10000, // $10,000 USD
+        exchangeRate: 88,
+        inrAmount: 880000, // ₹8,80,000 INR
         paymentDate: new Date('2025-01-12'),
         dueDate: new Date('2025-01-15'),
         paymentMethod: 'wire',
         transactionId: 'ACME-INV-001-PAID',
         status: 'paid',
-        notes: 'Initial 40% project kickoff retainer.',
+        notes: 'Initial 40% project kickoff retainer at ₹88/USD.',
       },
       {
         project: prj101._id,
         client: clientAcme._id,
-        amount: 8000,
+        currency: 'USD',
+        amount: 8000, // $8,000 USD
+        exchangeRate: 88.5,
+        inrAmount: 708000, // ₹7,08,000 INR
         paymentDate: new Date('2025-03-01'),
         dueDate: new Date('2025-03-01'),
         paymentMethod: 'wire',
         transactionId: 'ACME-INV-002-PAID',
         status: 'paid',
-        notes: 'Midway milestone delivery payment.',
+        notes: 'Midway milestone delivery payment at ₹88.50/USD.',
       },
       {
         project: prj101._id,
         client: clientAcme._id,
-        amount: 6000,
+        currency: 'USD',
+        amount: 6000, // $6,000 USD
+        exchangeRate: 88,
+        inrAmount: 528000,
         dueDate: new Date('2025-05-30'),
         paymentMethod: 'wire',
         status: 'pending',
         notes: 'Final acceptance & deployment tranche.',
       },
 
-      // PRJ-102 (Value: 18,500)
+      // PRJ-102 (USD $18,500 Project)
       {
         project: prj102._id,
         client: clientNova._id,
-        amount: 9000,
+        currency: 'USD',
+        amount: 9000, // $9,000 USD
+        exchangeRate: 88.5,
+        inrAmount: 796500, // ₹7,96,500 INR
         paymentDate: new Date('2025-02-05'),
         dueDate: new Date('2025-02-05'),
         paymentMethod: 'stripe',
         transactionId: 'NOVA-INV-101-PAID',
         status: 'paid',
-        notes: 'Retainer deposit for healthcare SaaS build.',
+        notes: 'Retainer deposit for healthcare SaaS build at ₹88.50/USD.',
       },
       {
         project: prj102._id,
         client: clientNova._id,
-        amount: 9500,
+        currency: 'USD',
+        amount: 9500, // $9,500 USD
+        exchangeRate: 88.5,
+        inrAmount: 840750,
         dueDate: new Date('2025-06-15'),
         paymentMethod: 'stripe',
         status: 'pending',
         notes: 'Final milestone invoice.',
       },
 
-      // PRJ-103 (Value: 32,000)
+      // PRJ-103 (INR ₹25,00,000 Project)
       {
         project: prj103._id,
         client: clientApex._id,
-        amount: 16000,
+        currency: 'INR',
+        amount: 1250000, // ₹12,50,000 INR
+        exchangeRate: 1,
+        inrAmount: 1250000,
         paymentDate: new Date('2024-11-20'),
         dueDate: new Date('2024-11-25'),
         paymentMethod: 'bank_transfer',
         transactionId: 'APEX-INV-990-PAID',
         status: 'paid',
-        notes: '50% upfront project commitment.',
+        notes: '50% upfront project commitment in INR.',
       },
       {
         project: prj103._id,
         client: clientApex._id,
-        amount: 8000,
+        currency: 'INR',
+        amount: 625000, // ₹6,25,000 INR
+        exchangeRate: 1,
+        inrAmount: 625000,
         paymentDate: new Date('2025-02-15'),
         dueDate: new Date('2025-02-20'),
         paymentMethod: 'bank_transfer',
         transactionId: 'APEX-INV-991-PAID',
         status: 'paid',
-        notes: 'Beta release delivery payment.',
+        notes: 'Beta release delivery payment in INR.',
       },
       {
         project: prj103._id,
         client: clientApex._id,
-        amount: 8000,
+        currency: 'INR',
+        amount: 625000, // ₹6,25,000 INR
+        exchangeRate: 1,
+        inrAmount: 625000,
         dueDate: new Date('2025-04-30'),
         paymentMethod: 'bank_transfer',
         status: 'pending',
-        notes: 'Final production sign-off balance.',
+        notes: 'Final production sign-off balance in INR.',
       },
 
-      // PRJ-104 (Value: 12,000 - 100% Paid)
+      // PRJ-104 (INR ₹10,00,000 - 100% Paid)
       {
         project: prj104._id,
         client: clientLuxe._id,
-        amount: 6000,
+        currency: 'INR',
+        amount: 500000, // ₹5,00,000 INR
+        exchangeRate: 1,
+        inrAmount: 500000,
         paymentDate: new Date('2024-10-05'),
         dueDate: new Date('2024-10-10'),
-        paymentMethod: 'stripe',
+        paymentMethod: 'bank_transfer',
         transactionId: 'LUXE-INV-01-PAID',
         status: 'paid',
       },
       {
         project: prj104._id,
         client: clientLuxe._id,
-        amount: 6000,
+        currency: 'INR',
+        amount: 500000, // ₹5,00,000 INR
+        exchangeRate: 1,
+        inrAmount: 500000,
         paymentDate: new Date('2025-01-20'),
         dueDate: new Date('2025-01-20'),
-        paymentMethod: 'stripe',
+        paymentMethod: 'bank_transfer',
         transactionId: 'LUXE-INV-02-PAID',
         status: 'paid',
         notes: 'Final storefront launch sign-off.',
       },
     ]);
 
-    // 8. Create Expenses
+    // 8. Create Expenses (Always in INR)
     await Expense.create([
-      // PRJ-101 Expenses
+      // PRJ-101 Expenses (INR)
       {
         project: prj101._id,
         name: 'AWS Cloud Infrastructure (EKS + RDS)',
         category: 'hosting',
-        amount: 450,
+        currency: 'INR',
+        amount: 38000,
         date: new Date('2025-02-01'),
         paymentMethod: 'credit_card',
-        description: 'Dedicated staging and load test cluster on AWS us-east-1.',
+        description: 'Dedicated staging and load test cluster on AWS.',
       },
       {
         project: prj101._id,
         name: 'Stripe Identity & KYC Verification Sandbox',
         category: 'api',
-        amount: 320,
+        currency: 'INR',
+        amount: 26000,
         date: new Date('2025-02-15'),
         paymentMethod: 'credit_card',
         description: 'Identity verification & AML compliance test tier.',
@@ -921,18 +999,20 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj101._id,
         name: 'Apple Developer Enterprise & Google Play Accounts',
         category: 'software',
-        amount: 299,
+        currency: 'INR',
+        amount: 25000,
         date: new Date('2025-01-15'),
         paymentMethod: 'credit_card',
         description: 'Store publishing credentials for client app builds.',
       },
 
-      // PRJ-102 Expenses
+      // PRJ-102 Expenses (INR)
       {
         project: prj102._id,
         name: 'Twilio Video & WebRTC Network Traffic',
         category: 'api',
-        amount: 280,
+        currency: 'INR',
+        amount: 24000,
         date: new Date('2025-03-01'),
         paymentMethod: 'credit_card',
         description: 'Encrypted HD video consultation bandwidth.',
@@ -941,18 +1021,20 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj102._id,
         name: 'HIPAA Compliant Cloud S3 Storage',
         category: 'hosting',
-        amount: 180,
+        currency: 'INR',
+        amount: 15000,
         date: new Date('2025-03-10'),
         paymentMethod: 'credit_card',
         description: 'KMS customer-managed encrypted document store.',
       },
 
-      // PRJ-103 Expenses
+      // PRJ-103 Expenses (INR)
       {
         project: prj103._id,
         name: 'MapBox Enterprise Tile & Directions API',
         category: 'api',
-        amount: 650,
+        currency: 'INR',
+        amount: 55000,
         date: new Date('2025-01-25'),
         paymentMethod: 'credit_card',
         description: 'High-volume routing vector tiles for European fleet tracking.',
@@ -961,39 +1043,43 @@ export const seedDatabase = async (force: boolean = false): Promise<void> => {
         project: prj103._id,
         name: 'Confluent Cloud Kafka Cluster',
         category: 'hosting',
-        amount: 520,
+        currency: 'INR',
+        amount: 42000,
         date: new Date('2025-02-10'),
         paymentMethod: 'credit_card',
         description: 'Managed multi-AZ Kafka streaming topic broker.',
       },
 
-      // PRJ-104 Expenses
+      // PRJ-104 Expenses (INR)
       {
         project: prj104._id,
         name: 'Vercel Enterprise & Algolia Search Index',
         category: 'hosting',
-        amount: 350,
+        currency: 'INR',
+        amount: 28000,
         date: new Date('2024-11-15'),
         paymentMethod: 'credit_card',
         description: 'Edge CDN distribution and instant product catalog search.',
       },
 
-      // General Agency Expenses
+      // General Agency Expenses (INR)
       {
         name: 'Figma Enterprise Design System Seat Licenses',
         category: 'software',
-        amount: 360,
+        currency: 'INR',
+        amount: 30000,
         date: new Date('2025-01-01'),
         paymentMethod: 'credit_card',
-        description: 'Agency-wide UI/UX collaboration licenses.',
+        description: 'Agency-wide UI/UX collaboration licenses in INR.',
       },
       {
         name: 'GitHub Enterprise & CI/CD Compute Hours',
         category: 'software',
-        amount: 240,
+        currency: 'INR',
+        amount: 20000,
         date: new Date('2025-01-05'),
         paymentMethod: 'credit_card',
-        description: 'Repository hosting and automated deployment runners.',
+        description: 'Repository hosting and automated deployment runners in INR.',
       },
     ]);
 

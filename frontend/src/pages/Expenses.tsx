@@ -27,7 +27,7 @@ import { Modal } from '../components/common/Modal.js';
 import { ConfirmModal } from '../components/common/ConfirmModal.js';
 import { LoadingSpinner } from '../components/common/LoadingSpinner.js';
 import { EmptyState } from '../components/common/EmptyState.js';
-import { formatCurrency, formatDate } from '../utils/formatters.js';
+import { formatINR, formatDate } from '../utils/formatters.js';
 import { IExpense, ExpenseCategory } from '../types/index.js';
 
 export const Expenses: React.FC = () => {
@@ -45,12 +45,13 @@ export const Expenses: React.FC = () => {
   const [editingExpense, setEditingExpense] = useState<IExpense | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Form State
+  // Form State (Always INR)
   const [formData, setFormData] = useState({
     name: '',
     project: '',
     category: 'hosting' as ExpenseCategory,
-    amount: 250,
+    amount: 5000,
+    currency: 'INR',
     date: new Date().toISOString().slice(0, 10),
     paymentMethod: 'credit_card',
     description: '',
@@ -77,7 +78,8 @@ export const Expenses: React.FC = () => {
       name: '',
       project: '',
       category: 'hosting',
-      amount: 250,
+      amount: 5000,
+      currency: 'INR',
       date: new Date().toISOString().slice(0, 10),
       paymentMethod: 'credit_card',
       description: '',
@@ -92,6 +94,7 @@ export const Expenses: React.FC = () => {
       project: (e.project as any)?._id || (e.project as string) || '',
       category: e.category,
       amount: e.amount,
+      currency: 'INR',
       date: e.date ? new Date(e.date).toISOString().slice(0, 10) : '',
       paymentMethod: e.paymentMethod || 'credit_card',
       description: e.description || '',
@@ -109,6 +112,7 @@ export const Expenses: React.FC = () => {
             ...formData,
             project: formData.project || undefined,
             amount: Number(formData.amount),
+            currency: 'INR',
           },
         })
       );
@@ -118,6 +122,7 @@ export const Expenses: React.FC = () => {
           ...formData,
           project: formData.project || undefined,
           amount: Number(formData.amount),
+          currency: 'INR',
         })
       );
     }
@@ -138,28 +143,33 @@ export const Expenses: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-white tracking-tight">Expense Management</h2>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-2xl font-extrabold text-white tracking-tight">Expense Management</h2>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              Recorded in INR (₹)
+            </span>
+          </div>
           <p className="text-xs text-slate-400 mt-1">
-            Track cloud infrastructure, third-party APIs, licenses, and operating expenditures
+            Track cloud infrastructure, third-party APIs, licenses, and agency operating overheads
           </p>
         </div>
         {isAdmin && (
           <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={handleOpenCreate}>
-            Add Expense
+            Add Expense (INR)
           </Button>
         )}
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards (All in INR) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <Card className="border-l-4 border-l-rose-500">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Expenses
+                Total Expenses (INR)
               </p>
               <h3 className="text-2xl font-extrabold text-rose-400 mt-1">
-                {formatCurrency(totalAmount)}
+                {formatINR(totalAmount)}
               </h3>
             </div>
             <div className="p-3 rounded-xl bg-rose-500/10 text-rose-400">
@@ -173,10 +183,10 @@ export const Expenses: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Hosting & Cloud Infra
+                Hosting & Cloud Infra (INR)
               </p>
               <h3 className="text-2xl font-extrabold text-white mt-1">
-                {formatCurrency(
+                {formatINR(
                   expenses
                     .filter((e) => e.category === 'hosting')
                     .reduce((sum, e) => sum + (e.amount || 0), 0)
@@ -194,18 +204,18 @@ export const Expenses: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                APIs & Software Licenses
+                APIs & Software Licenses (INR)
               </p>
               <h3 className="text-2xl font-extrabold text-amber-400 mt-1">
-                {formatCurrency(
+                {formatINR(
                   expenses
                     .filter((e) => e.category === 'api' || e.category === 'software')
                     .reduce((sum, e) => sum + (e.amount || 0), 0)
                 )}
               </h3>
             </div>
-            <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400">
-              <DollarSign className="w-5 h-5" />
+            <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 font-bold text-lg">
+              ₹
             </div>
           </div>
           <p className="text-[11px] text-slate-400 mt-3">Third party developer tooling</p>
@@ -256,7 +266,7 @@ export const Expenses: React.FC = () => {
         <EmptyState
           icon={<Receipt className="w-8 h-8 text-rose-400" />}
           title="No expenses recorded"
-          description="Log project software, hosting, or agency overheads."
+          description="Log project software, hosting, or agency overheads in INR."
           actionText={isAdmin ? 'Add Expense' : undefined}
           onAction={isAdmin ? handleOpenCreate : undefined}
         />
@@ -269,7 +279,7 @@ export const Expenses: React.FC = () => {
                   <th className="py-3.5 px-6">Expense Name</th>
                   <th className="py-3.5 px-4">Project</th>
                   <th className="py-3.5 px-4">Category</th>
-                  <th className="py-3.5 px-4 text-right">Amount</th>
+                  <th className="py-3.5 px-4 text-right">Amount (INR)</th>
                   <th className="py-3.5 px-4">Date</th>
                   <th className="py-3.5 px-4">Method</th>
                   {isAdmin && <th className="py-3.5 px-6 text-right">Actions</th>}
@@ -296,7 +306,7 @@ export const Expenses: React.FC = () => {
                         </span>
                       </td>
                       <td className="py-4 px-4 text-right font-extrabold text-rose-400 text-sm">
-                        {formatCurrency(e.amount)}
+                        {formatINR(e.amount)}
                       </td>
                       <td className="py-4 px-4 text-slate-400">{formatDate(e.date)}</td>
                       <td className="py-4 px-4 capitalize text-slate-300 font-medium">
@@ -335,7 +345,7 @@ export const Expenses: React.FC = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingExpense ? 'Edit Expense' : 'Add New Expense'}
+        title={editingExpense ? 'Edit Expense (INR)' : 'Add New Expense (INR)'}
         maxWidth="md"
       >
         <form onSubmit={handleSaveExpense} className="space-y-4">
@@ -363,7 +373,7 @@ export const Expenses: React.FC = () => {
               value={formData.category}
               onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
               options={[
-                { value: 'hosting', label: 'Hosting' },
+                { value: 'hosting', label: 'Hosting & Cloud' },
                 { value: 'domain', label: 'Domain' },
                 { value: 'api', label: 'API' },
                 { value: 'software', label: 'Software' },
@@ -374,7 +384,7 @@ export const Expenses: React.FC = () => {
               ]}
             />
             <Input
-              label="Amount ($)"
+              label="Amount (₹ INR)"
               type="number"
               required
               min={0}
@@ -397,7 +407,7 @@ export const Expenses: React.FC = () => {
               onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
               options={[
                 { value: 'credit_card', label: 'Corporate Card' },
-                { value: 'bank_transfer', label: 'Bank Transfer' },
+                { value: 'bank_transfer', label: 'Bank Transfer / UPI' },
                 { value: 'paypal', label: 'PayPal' },
                 { value: 'cash', label: 'Cash' },
               ]}
@@ -422,7 +432,7 @@ export const Expenses: React.FC = () => {
               Cancel
             </Button>
             <Button type="submit" variant="primary">
-              {editingExpense ? 'Save Changes' : 'Record Expense'}
+              {editingExpense ? 'Save Changes' : 'Record Expense (INR)'}
             </Button>
           </div>
         </form>
@@ -434,7 +444,7 @@ export const Expenses: React.FC = () => {
         onClose={() => setDeletingId(null)}
         onConfirm={handleConfirmDelete}
         title="Delete Expense Record"
-        message="Are you sure you want to delete this expense? Project profit calculations will update automatically."
+        message="Are you sure you want to delete this expense? Project profit calculations will update automatically in INR."
         confirmText="Delete Expense"
       />
     </div>

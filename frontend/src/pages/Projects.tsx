@@ -8,10 +8,7 @@ import {
   ArrowUpRight,
   Edit2,
   Trash2,
-  Users,
-  Calendar,
-  Layers,
-  Filter,
+  TrendingUp,
 } from 'lucide-react';
 import { RootState, AppDispatch } from '../store/index.js';
 import {
@@ -32,8 +29,12 @@ import { Badge } from '../components/common/Badge.js';
 import { ProgressBar } from '../components/common/ProgressBar.js';
 import { LoadingSpinner } from '../components/common/LoadingSpinner.js';
 import { EmptyState } from '../components/common/EmptyState.js';
-import { formatCurrency, formatDate, formatPercentage } from '../utils/formatters.js';
-import { IProject } from '../types/index.js';
+import { CurrencySelector } from '../components/common/CurrencySelector.js';
+import { CurrencyInput } from '../components/common/CurrencyInput.js';
+import { ExchangeRateInput } from '../components/common/ExchangeRateInput.js';
+import { MoneyDisplay } from '../components/common/MoneyDisplay.js';
+import { formatCurrency, formatINR, formatPercentage } from '../utils/formatters.js';
+import { Currency, IProject } from '../types/index.js';
 
 export const Projects: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -43,6 +44,7 @@ export const Projects: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth);
 
   const [search, setSearch] = useState('');
+  const [currencyFilter, setCurrencyFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [clientFilter, setClientFilter] = useState('all');
@@ -63,7 +65,9 @@ export const Projects: React.FC = () => {
     expectedEndDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     status: 'planning',
     priority: 'medium',
-    projectValue: 10000,
+    currency: 'INR' as Currency,
+    projectValue: 200000,
+    estimatedExchangeRate: 88,
     projectManager: '',
     technologies: 'React, TypeScript, Node.js',
     notes: '',
@@ -73,6 +77,7 @@ export const Projects: React.FC = () => {
     dispatch(
       fetchProjects({
         search,
+        currency: currencyFilter,
         status: statusFilter,
         priority: priorityFilter,
         client: clientFilter,
@@ -80,7 +85,7 @@ export const Projects: React.FC = () => {
     );
     dispatch(fetchClients({}));
     dispatch(fetchTeam({}));
-  }, [dispatch, search, statusFilter, priorityFilter, clientFilter]);
+  }, [dispatch, search, currencyFilter, statusFilter, priorityFilter, clientFilter]);
 
   const pms = team.filter((m) => m.role === 'project_manager' || m.role === 'admin');
 
@@ -95,7 +100,9 @@ export const Projects: React.FC = () => {
       expectedEndDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       status: 'planning',
       priority: 'medium',
-      projectValue: 10000,
+      currency: 'INR',
+      projectValue: 250000,
+      estimatedExchangeRate: 88,
       projectManager: pms[0]?._id || user?._id || '',
       technologies: 'React, TypeScript, Node.js',
       notes: '',
@@ -105,6 +112,7 @@ export const Projects: React.FC = () => {
 
   const handleOpenEdit = (project: IProject) => {
     setEditingProject(project);
+    const curr = project.currency || 'INR';
     setFormData({
       name: project.name,
       projectId: project.projectId,
@@ -117,7 +125,9 @@ export const Projects: React.FC = () => {
         : '',
       status: project.status,
       priority: project.priority,
+      currency: curr,
       projectValue: project.projectValue,
+      estimatedExchangeRate: project.estimatedExchangeRate || (curr === 'USD' ? 88 : 1),
       projectManager:
         (project.projectManager as any)?._id || (project.projectManager as string) || '',
       technologies: Array.isArray(project.technologies)
@@ -129,9 +139,16 @@ export const Projects: React.FC = () => {
 
   const handleSaveCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const rate = formData.currency === 'INR' ? 1 : Number(formData.estimatedExchangeRate) || 88;
+    const pValue = Number(formData.projectValue);
+    const inrVal = formData.currency === 'INR' ? pValue : Math.round(pValue * rate);
+
     const payload: any = {
       ...formData,
-      projectValue: Number(formData.projectValue),
+      currency: formData.currency,
+      projectValue: pValue,
+      estimatedExchangeRate: rate,
+      estimatedInrValue: inrVal,
       technologies: formData.technologies.split(',').map((t) => t.trim()),
     };
     const res = await dispatch(createProject(payload));
@@ -143,9 +160,16 @@ export const Projects: React.FC = () => {
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProject) return;
+    const rate = formData.currency === 'INR' ? 1 : Number(formData.estimatedExchangeRate) || 88;
+    const pValue = Number(formData.projectValue);
+    const inrVal = formData.currency === 'INR' ? pValue : Math.round(pValue * rate);
+
     const payload: any = {
       ...formData,
-      projectValue: Number(formData.projectValue),
+      currency: formData.currency,
+      projectValue: pValue,
+      estimatedExchangeRate: rate,
+      estimatedInrValue: inrVal,
       technologies: formData.technologies.split(',').map((t) => t.trim()),
     };
     const res = await dispatch(updateProject({ id: editingProject._id, data: payload }));
@@ -170,7 +194,7 @@ export const Projects: React.FC = () => {
         <div>
           <h2 className="text-2xl font-extrabold text-white tracking-tight">Project Management</h2>
           <p className="text-xs text-slate-400 mt-1">
-            Track client scopes, agreed budgets, team payroll commitments, and profitability
+            Track multi-currency client contracts (INR / USD), team payroll (INR), and project margins
           </p>
         </div>
         {isAdmin && (
@@ -186,12 +210,21 @@ export const Projects: React.FC = () => {
 
       {/* Filters Bar */}
       <Card className="p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <Input
             placeholder="Search by project name or ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             icon={<Search className="w-4 h-4" />}
+          />
+          <Select
+            value={currencyFilter}
+            onChange={(e) => setCurrencyFilter(e.target.value)}
+            options={[
+              { value: 'all', label: 'All Currencies' },
+              { value: 'INR', label: '🇮🇳 INR Projects (₹)' },
+              { value: 'USD', label: '🇺🇸 USD Projects ($)' },
+            ]}
           />
           <Select
             value={statusFilter}
@@ -244,14 +277,15 @@ export const Projects: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-900/80 text-slate-400 uppercase tracking-wider font-semibold">
-                  <th className="py-3.5 px-6">Project & Client</th>
-                  <th className="py-3.5 px-4">Manager</th>
-                  <th className="py-3.5 px-4">Status & Priority</th>
-                  <th className="py-3.5 px-4 text-right">Contract Value</th>
-                  <th className="py-3.5 px-4 text-right">Team Payroll</th>
-                  <th className="py-3.5 px-4 text-right">Expected Profit</th>
-                  <th className="py-3.5 px-4 w-32">Progress</th>
-                  <th className="py-3.5 px-6 text-right">Actions</th>
+                  <th className="py-3.5 px-5">Project & Client</th>
+                  <th className="py-3.5 px-3">Currency</th>
+                  <th className="py-3.5 px-3 text-right">Contract Value</th>
+                  <th className="py-3.5 px-3 text-right">Estimated INR</th>
+                  <th className="py-3.5 px-3 text-right">Received (INR)</th>
+                  <th className="py-3.5 px-3 text-right">Payroll (INR)</th>
+                  <th className="py-3.5 px-3 text-right">Expected Profit</th>
+                  <th className="py-3.5 px-3 w-28">Progress</th>
+                  <th className="py-3.5 px-5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -259,10 +293,11 @@ export const Projects: React.FC = () => {
                   const clientObj = typeof p.client === 'object' ? p.client : null;
                   const pmObj = typeof p.projectManager === 'object' ? p.projectManager : null;
                   const finances = p.finances;
+                  const curr: Currency = p.currency || 'INR';
 
                   return (
                     <tr key={p._id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-4 px-6">
+                      <td className="py-3.5 px-5">
                         <div className="font-bold text-slate-100 text-sm">{p.name}</div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">
@@ -271,61 +306,83 @@ export const Projects: React.FC = () => {
                           <span className="text-slate-400 text-xs">
                             {clientObj?.companyName || 'Client'}
                           </span>
+                          <span className="text-slate-500 text-[11px]">• PM: {pmObj?.name || 'Assigned'}</span>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-slate-300">
-                        <div className="flex items-center gap-2">
-                          <img
-                            src={
-                              pmObj?.avatarUrl ||
-                              `https://api.dicebear.com/7.x/avataaars/svg?seed=${pmObj?.name || 'PM'}`
-                            }
-                            alt={pmObj?.name}
-                            className="w-5 h-5 rounded-full bg-slate-800 object-cover shrink-0"
-                          />
-                          <span className="font-medium text-xs">{pmObj?.name || 'Assigned PM'}</span>
-                        </div>
+
+                      <td className="py-3.5 px-3">
+                        <span
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${
+                            curr === 'USD'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                          }`}
+                        >
+                          <span>{curr === 'USD' ? '🇺🇸 USD' : '🇮🇳 INR'}</span>
+                        </span>
                       </td>
-                      <td className="py-4 px-4 space-y-1">
-                        <div>
-                          <Badge variant="status" status={p.status} size="sm">
-                            {p.status}
-                          </Badge>
-                        </div>
-                        <div>
-                          <Badge variant="priority" status={p.priority} size="sm">
-                            {p.priority}
-                          </Badge>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 text-right">
+
+                      {/* Original Contract Value */}
+                      <td className="py-3.5 px-3 text-right">
                         <div className="font-extrabold text-slate-200">
-                          {formatCurrency(p.projectValue)}
+                          {formatCurrency(p.projectValue, curr)}
                         </div>
-                        <div className="text-[10px] text-emerald-400 font-semibold">
-                          {formatCurrency(finances?.clientReceived || 0)} received
-                        </div>
+                        {curr === 'USD' && (
+                          <div className="text-[10px] text-slate-400">
+                            @ ₹{p.estimatedExchangeRate || 88}/USD
+                          </div>
+                        )}
                       </td>
-                      <td className="py-4 px-4 text-right">
-                        <div className="font-extrabold text-indigo-400">
-                          {formatCurrency(finances?.teamPayrollCommitted || 0)}
+
+                      {/* Estimated INR Value */}
+                      <td className="py-3.5 px-3 text-right">
+                        <div className="font-extrabold text-indigo-300 font-mono">
+                          {formatINR(p.estimatedInrValue || (curr === 'INR' ? p.projectValue : (p.projectValue * (p.estimatedExchangeRate || 88))))}
+                        </div>
+                        <div className="text-[10px] text-slate-400">Base Currency</div>
+                      </td>
+
+                      {/* Client Received (INR) */}
+                      <td className="py-3.5 px-3 text-right">
+                        <div className="font-extrabold text-emerald-400 font-mono">
+                          {formatINR(finances?.clientReceivedInr ?? (finances?.clientReceived || 0))}
+                        </div>
+                        {curr === 'USD' && (
+                          <div className="text-[10px] text-slate-400">
+                            ({formatCurrency(finances?.clientReceived || 0, 'USD')})
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Team Payroll (Strictly INR) */}
+                      <td className="py-3.5 px-3 text-right">
+                        <div className="font-extrabold text-indigo-400 font-mono">
+                          {formatINR(finances?.teamPayrollCommitted || 0)}
                         </div>
                         <div className="text-[10px] text-slate-400">
-                          {formatCurrency(finances?.teamPayrollPaid || 0)} paid
+                          {formatINR(finances?.teamPayrollPaid || 0)} paid
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-right">
-                        <div className="font-extrabold text-emerald-400">
-                          {formatCurrency(finances?.expectedProfit || 0)}
+
+                      {/* Expected Profit */}
+                      <td className="py-3.5 px-3 text-right">
+                        <div
+                          className={`font-extrabold font-mono ${
+                            (finances?.expectedProfit || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                          }`}
+                        >
+                          {formatINR(finances?.expectedProfit || 0)}
                         </div>
                         <span className="text-[10px] font-semibold text-slate-400">
                           {formatPercentage(finances?.profitMargin || 0)} margin
                         </span>
                       </td>
-                      <td className="py-4 px-4">
+
+                      <td className="py-3.5 px-3">
                         <ProgressBar progress={p.taskProgress || 0} showLabel size="sm" />
                       </td>
-                      <td className="py-4 px-6 text-right">
+
+                      <td className="py-3.5 px-5 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Link
                             to={`/projects/${p._id}`}
@@ -411,15 +468,55 @@ export const Projects: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Input
-              label="Contract Value ($)"
-              type="number"
-              required
-              min={0}
-              value={formData.projectValue}
-              onChange={(e) => setFormData({ ...formData, projectValue: Number(e.target.value) })}
+          {/* Currency Configuration Section */}
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-4">
+            <CurrencySelector
+              label="Project Billing Currency"
+              value={formData.currency}
+              onChange={(c) => {
+                setFormData({
+                  ...formData,
+                  currency: c,
+                  estimatedExchangeRate: c === 'USD' ? 88 : 1,
+                });
+              }}
             />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <CurrencyInput
+                label={`Project Value (${formData.currency})`}
+                required
+                currency={formData.currency}
+                value={formData.projectValue}
+                onChange={(val) => setFormData({ ...formData, projectValue: val })}
+                helperText={
+                  formData.currency === 'INR'
+                    ? 'Contract amount billed in Indian Rupees'
+                    : 'Contract amount billed in US Dollars'
+                }
+              />
+
+              {formData.currency === 'USD' ? (
+                <ExchangeRateInput
+                  originalAmount={formData.projectValue}
+                  exchangeRate={formData.estimatedExchangeRate}
+                  onRateChange={(rate) => setFormData({ ...formData, estimatedExchangeRate: rate })}
+                />
+              ) : (
+                <div className="flex flex-col justify-center px-4 py-3 rounded-xl bg-indigo-950/20 border border-indigo-500/20">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    INR Reporting Value
+                  </span>
+                  <span className="text-xl font-extrabold text-white mt-0.5 font-mono">
+                    {formatINR(formData.projectValue)}
+                  </span>
+                  <span className="text-[10px] text-emerald-400 mt-1">1:1 Direct Domestic Settlement</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Status"
               value={formData.status}

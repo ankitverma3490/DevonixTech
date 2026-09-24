@@ -22,6 +22,7 @@ import {
   LayoutGrid,
   List,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { RootState, AppDispatch } from '../store/index.js';
 import { fetchProjectById } from '../store/slices/projectSlice.js';
@@ -46,8 +47,20 @@ import { Badge } from '../components/common/Badge.js';
 import { ProgressBar } from '../components/common/ProgressBar.js';
 import { LoadingSpinner } from '../components/common/LoadingSpinner.js';
 import { KanbanBoard } from '../components/kanban/KanbanBoard.js';
-import { formatCurrency, formatDate, formatPercentage } from '../utils/formatters.js';
-import { ITask, TaskStatus } from '../types/index.js';
+import { CurrencySelector } from '../components/common/CurrencySelector.js';
+import { ExchangeRateInput } from '../components/common/ExchangeRateInput.js';
+import { INRAmountDisplay } from '../components/common/INRAmountDisplay.js';
+import { MoneyDisplay } from '../components/common/MoneyDisplay.js';
+import {
+  formatCurrency,
+  formatINR,
+  formatUSD,
+  formatExchangeRate,
+  formatMoneyWithOriginal,
+  formatDate,
+  formatPercentage,
+} from '../utils/formatters.js';
+import { ITask, TaskStatus, Currency, ClientPaymentStatus } from '../types/index.js';
 
 export const ProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -70,21 +83,21 @@ export const ProjectDetail: React.FC = () => {
     dueDate: '',
   });
 
-  // Assign Team Member & Payroll Modal
+  // Assign Team Member & Payroll Modal (Payroll is ALWAYS INR)
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [assignFormData, setAssignFormData] = useState({
     teamMember: '',
     role: '',
-    agreedAmount: 2000,
+    agreedAmount: 80000,
     paymentType: 'fixed' as any,
   });
 
-  // Add Milestone Modal
+  // Add Milestone Modal (Milestones are ALWAYS INR)
   const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
   const [selectedPayrollForMilestone, setSelectedPayrollForMilestone] = useState<string>('');
   const [milestoneFormData, setMilestoneFormData] = useState({
     title: '',
-    amount: 1000,
+    amount: 25000,
     dueDate: new Date().toISOString().slice(0, 10),
     status: 'pending' as any,
     paymentMethod: 'bank_transfer',
@@ -101,24 +114,36 @@ export const ProjectDetail: React.FC = () => {
     notes: '',
   });
 
-  // Add Client Payment Modal
+  // Add Client Payment Modal (Supports INR or USD with exchange rate)
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [paymentFormData, setPaymentFormData] = useState({
-    amount: 5000,
+  const [paymentFormData, setPaymentFormData] = useState<{
+    amount: number;
+    currency: Currency;
+    exchangeRate: number;
+    dueDate: string;
+    paymentDate: string;
+    status: ClientPaymentStatus;
+    paymentMethod: string;
+    transactionId: string;
+    notes: string;
+  }>({
+    amount: 1000,
+    currency: 'USD',
+    exchangeRate: 88,
     dueDate: new Date().toISOString().slice(0, 10),
     paymentDate: new Date().toISOString().slice(0, 10),
-    status: 'paid' as any,
+    status: 'paid',
     paymentMethod: 'stripe',
     transactionId: '',
     notes: '',
   });
 
-  // Add Expense Modal
+  // Add Expense Modal (Always INR)
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [expenseFormData, setExpenseFormData] = useState({
     name: '',
     category: 'hosting' as any,
-    amount: 250,
+    amount: 5000,
     date: new Date().toISOString().slice(0, 10),
     paymentMethod: 'credit_card',
     description: '',
@@ -147,6 +172,12 @@ export const ProjectDetail: React.FC = () => {
   const milestones = project.milestones || [];
   const payments = project.payments || [];
   const expenses = project.expenses || [];
+
+  const projectCurrency: Currency = project.currency || 'USD';
+  const estimatedRate = project.estimatedExchangeRate || (projectCurrency === 'USD' ? 88 : 1);
+  const estimatedInr =
+    project.estimatedInrValue ||
+    (projectCurrency === 'USD' ? project.projectValue * estimatedRate : project.projectValue);
 
   const isAdmin = user?.role === 'admin';
   const isPM = user?.role === 'project_manager';
@@ -181,7 +212,7 @@ export const ProjectDetail: React.FC = () => {
     }
   };
 
-  // Team & Payroll actions
+  // Team & Payroll actions (Always INR)
   const handleAssignTeamMember = async (e: React.FormEvent) => {
     e.preventDefault();
     await dispatch(
@@ -191,6 +222,7 @@ export const ProjectDetail: React.FC = () => {
         role: assignFormData.role,
         agreedAmount: Number(assignFormData.agreedAmount),
         paymentType: assignFormData.paymentType,
+        currency: 'INR',
       })
     );
     setIsAssignModalOpen(false);
@@ -208,7 +240,7 @@ export const ProjectDetail: React.FC = () => {
     setSelectedPayrollForMilestone(payrollId);
     setMilestoneFormData({
       title: '',
-      amount: 1000,
+      amount: 25000,
       dueDate: new Date().toISOString().slice(0, 10),
       status: 'pending',
       paymentMethod: 'bank_transfer',
@@ -226,6 +258,7 @@ export const ProjectDetail: React.FC = () => {
         data: {
           ...milestoneFormData,
           amount: Number(milestoneFormData.amount),
+          currency: 'INR',
         },
       })
     );
@@ -252,14 +285,37 @@ export const ProjectDetail: React.FC = () => {
     reloadWorkspace();
   };
 
+  const handleOpenPaymentModal = () => {
+    const pCurr: Currency = project.currency || 'USD';
+    const defaultRate = pCurr === 'INR' ? 1 : project.estimatedExchangeRate || 88;
+    setPaymentFormData({
+      amount: project ? Math.max(1, (project.projectValue || 0) - (finances?.clientReceived || 0)) : 1000,
+      currency: pCurr,
+      exchangeRate: defaultRate,
+      dueDate: new Date().toISOString().slice(0, 10),
+      paymentDate: new Date().toISOString().slice(0, 10),
+      status: 'paid',
+      paymentMethod: pCurr === 'USD' ? 'wire' : 'bank_transfer',
+      transactionId: '',
+      notes: '',
+    });
+    setIsPaymentModalOpen(true);
+  };
+
   // Client Payment actions
   const handleSaveClientPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    const rate = paymentFormData.currency === 'INR' ? 1 : Number(paymentFormData.exchangeRate || 1);
+    const inrAmt = Number(paymentFormData.amount) * rate;
+
     await dispatch(
       createPayment({
         project: project._id,
         client: (clientObj as any)?._id || (project.client as string),
         amount: Number(paymentFormData.amount),
+        currency: paymentFormData.currency,
+        exchangeRate: rate,
+        inrAmount: inrAmt,
         dueDate: paymentFormData.dueDate,
         paymentDate: paymentFormData.status === 'paid' ? paymentFormData.paymentDate : undefined,
         status: paymentFormData.status,
@@ -272,7 +328,7 @@ export const ProjectDetail: React.FC = () => {
     reloadWorkspace();
   };
 
-  // Expense actions
+  // Expense actions (Always INR)
   const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     await dispatch(
@@ -281,6 +337,7 @@ export const ProjectDetail: React.FC = () => {
         name: expenseFormData.name,
         category: expenseFormData.category,
         amount: Number(expenseFormData.amount),
+        currency: 'INR',
         date: expenseFormData.date,
         paymentMethod: expenseFormData.paymentMethod,
         description: expenseFormData.description,
@@ -314,6 +371,15 @@ export const ProjectDetail: React.FC = () => {
                 {project.projectId}
               </span>
               <h2 className="text-2xl font-extrabold text-white tracking-tight">{project.name}</h2>
+              <span
+                className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full border ${
+                  projectCurrency === 'USD'
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                    : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30'
+                }`}
+              >
+                {projectCurrency} Project
+              </span>
               <Badge variant="status" status={project.status}>
                 {project.status}
               </Badge>
@@ -338,7 +404,15 @@ export const ProjectDetail: React.FC = () => {
                 variant="outline"
                 size="sm"
                 icon={<Plus className="w-3.5 h-3.5 text-indigo-400" />}
-                onClick={() => setIsAssignModalOpen(true)}
+                onClick={() => {
+                  setAssignFormData({
+                    teamMember: allTeamMembers[0]?._id || '',
+                    role: 'Lead Developer',
+                    agreedAmount: 80000,
+                    paymentType: 'fixed',
+                  });
+                  setIsAssignModalOpen(true);
+                }}
               >
                 Assign Member
               </Button>
@@ -402,7 +476,7 @@ export const ProjectDetail: React.FC = () => {
           }`}
         >
           <Users className="w-4 h-4" />
-          <span>Team & Project Payroll ({teamMembers.length})</span>
+          <span>Team & Payroll in INR ({teamMembers.length})</span>
         </button>
 
         <button
@@ -414,7 +488,7 @@ export const ProjectDetail: React.FC = () => {
           }`}
         >
           <DollarSign className="w-4 h-4 text-emerald-400" />
-          <span>Finances & Profitability</span>
+          <span>Finances & Profitability (INR Base)</span>
         </button>
       </div>
 
@@ -425,44 +499,52 @@ export const ProjectDetail: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <Card className="border-l-4 border-l-blue-500">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Contract Value
+                Contract Value ({projectCurrency})
               </span>
               <div className="text-2xl font-extrabold text-white mt-1">
-                {formatCurrency(project.projectValue)}
+                {formatCurrency(project.projectValue, projectCurrency)}
               </div>
-              <div className="text-[11px] text-emerald-400 font-semibold mt-2">
-                {formatCurrency(finances?.clientReceived || 0)} received
+              <div className="text-[11px] text-slate-300 font-semibold mt-2">
+                {projectCurrency === 'USD' ? (
+                  <>
+                    Est. INR: <span className="text-indigo-400 font-bold">{formatINR(estimatedInr)}</span>
+                  </>
+                ) : (
+                  <>
+                    Received: <span className="text-emerald-400">{formatINR(finances?.clientReceived || 0)}</span>
+                  </>
+                )}
               </div>
             </Card>
 
             <Card className="border-l-4 border-l-indigo-500">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Team Payroll Committed
+                Team Payroll (INR)
               </span>
               <div className="text-2xl font-extrabold text-indigo-400 mt-1">
-                {formatCurrency(finances?.teamPayrollCommitted || 0)}
+                {formatINR(finances?.teamPayrollCommitted || 0)}
               </div>
               <div className="text-[11px] text-slate-400 mt-2">
-                {formatCurrency(finances?.teamPayrollPaid || 0)} settled
+                {formatINR(finances?.teamPayrollPaid || 0)} settled
               </div>
             </Card>
 
             <Card className="border-l-4 border-l-rose-500">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Project Expenses
+                Project Expenses (INR)
               </span>
               <div className="text-2xl font-extrabold text-rose-400 mt-1">
-                {formatCurrency(finances?.expenses || 0)}
+                {formatINR(finances?.expenses || 0)}
               </div>
               <div className="text-[11px] text-slate-400 mt-2">{expenses.length} receipts logged</div>
             </Card>
 
             <Card className="border-l-4 border-l-emerald-500">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Expected Profit
+                Expected Profit (INR)
               </span>
               <div className="text-2xl font-extrabold text-emerald-400 mt-1">
-                {formatCurrency(finances?.expectedProfit || 0)}
+                {formatINR(finances?.expectedProfit || 0)}
               </div>
               <div className="text-[11px] text-emerald-400 font-bold mt-2">
                 {formatPercentage(finances?.profitMargin || 0)} margin
@@ -700,14 +782,19 @@ export const ProjectDetail: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: TEAM & PROJECT PAYROLL */}
+      {/* TAB 3: TEAM & PROJECT PAYROLL (ALWAYS INR) */}
       {activeTab === 'team' && (
         <div className="space-y-8">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-base font-bold text-white">Project Assigned Team & Compensation</h3>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <span>Project Assigned Team & Compensation</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                  Always Paid in INR (₹)
+                </span>
+              </h3>
               <p className="text-xs text-slate-400">
-                Team members are compensated with project-based agreed payments and milestones
+                Team members are compensated in INR with agreed project milestones and payouts
               </p>
             </div>
             {isAdmin && (
@@ -715,7 +802,15 @@ export const ProjectDetail: React.FC = () => {
                 variant="primary"
                 size="sm"
                 icon={<Plus className="w-3.5 h-3.5" />}
-                onClick={() => setIsAssignModalOpen(true)}
+                onClick={() => {
+                  setAssignFormData({
+                    teamMember: allTeamMembers[0]?._id || '',
+                    role: 'Developer',
+                    agreedAmount: 80000,
+                    paymentType: 'fixed',
+                  });
+                  setIsAssignModalOpen(true);
+                }}
               >
                 Assign Member
               </Button>
@@ -748,6 +843,7 @@ export const ProjectDetail: React.FC = () => {
                         <span className="text-[10px] text-slate-400">{u.email}</span>
                       </div>
                     </div>
+
                     {isAdmin && (
                       <button
                         onClick={() => handleRemoveMember(member._id)}
@@ -759,24 +855,24 @@ export const ProjectDetail: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Financial Agreed vs Paid vs Pending */}
+                  {/* Financial Agreed vs Paid vs Pending in INR */}
                   <div className="mt-4 pt-4 border-t border-slate-800/80 grid grid-cols-3 gap-3 text-center">
                     <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800">
-                      <span className="text-[10px] uppercase font-bold text-slate-400">Agreed</span>
+                      <span className="text-[10px] uppercase font-bold text-slate-400">Agreed (INR)</span>
                       <div className="text-sm font-extrabold text-white mt-0.5">
-                        {formatCurrency(member.agreedAmount)}
+                        {formatINR(member.agreedAmount)}
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800">
-                      <span className="text-[10px] uppercase font-bold text-slate-400">Paid</span>
+                      <span className="text-[10px] uppercase font-bold text-slate-400">Paid (INR)</span>
                       <div className="text-sm font-extrabold text-emerald-400 mt-0.5">
-                        {formatCurrency(member.totalPaid)}
+                        {formatINR(member.totalPaid)}
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800">
-                      <span className="text-[10px] uppercase font-bold text-slate-400">Pending</span>
+                      <span className="text-[10px] uppercase font-bold text-slate-400">Pending (INR)</span>
                       <div className="text-sm font-extrabold text-amber-400 mt-0.5">
-                        {formatCurrency(member.pendingAmount)}
+                        {formatINR(member.pendingAmount)}
                       </div>
                     </div>
                   </div>
@@ -811,7 +907,7 @@ export const ProjectDetail: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="font-extrabold text-slate-200">
-                              {formatCurrency(ms.amount)}
+                              {formatINR(ms.amount)}
                             </span>
                             <Badge variant="status" status={ms.status} size="sm">
                               {ms.status}
@@ -844,77 +940,161 @@ export const ProjectDetail: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 4: FINANCES & PROFITABILITY */}
+      {/* TAB 4: FINANCES & PROFITABILITY (INR BASE REPORTING) */}
       {activeTab === 'finances' && (
         <div className="space-y-8">
           {/* Dual Financial Comparison: Contract Position vs Cash Position */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card title="Contract Financial Position" subtitle="Accrual-based profitability">
+            <Card title="Contract Financial Position" subtitle="Accrual-based profitability with INR base">
               <div className="space-y-3.5 text-xs">
-                <div className="flex justify-between py-1.5 border-b border-slate-800">
-                  <span className="text-slate-400">Total Project Value</span>
-                  <span className="font-bold text-slate-100 text-sm">
-                    {formatCurrency(finances?.contractValue || 0)}
+                <div className="flex justify-between items-center py-2 border-b border-slate-800">
+                  <div>
+                    <span className="text-slate-300 font-semibold block">Total Project Value</span>
+                    {projectCurrency === 'USD' && (
+                      <span className="text-[11px] text-slate-400">
+                        Original: {formatUSD(project.projectValue)} (Rate: ₹{estimatedRate}/USD)
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-slate-100 text-base">
+                      {projectCurrency === 'USD'
+                        ? formatINR(estimatedInr)
+                        : formatINR(project.projectValue)}
+                    </span>
+                    {projectCurrency === 'USD' && (
+                      <span className="text-[10px] text-slate-400 block">Est. Base INR</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center py-2 border-b border-slate-800">
+                  <div>
+                    <span className="text-slate-300 font-semibold block">Client Payments Received</span>
+                    {projectCurrency === 'USD' && (
+                      <span className="text-[11px] text-emerald-400/80">
+                        Received: {formatUSD(finances?.clientReceived || 0)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-emerald-400 text-sm">
+                      {formatINR(finances?.clientReceivedInr || 0)}
+                    </span>
+                    <span className="text-[10px] text-slate-400 block">Actual INR from stored rates</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center py-2 border-b border-slate-800">
+                  <div>
+                    <span className="text-slate-300 font-semibold block">Client Pending Balance</span>
+                    {projectCurrency === 'USD' && (
+                      <span className="text-[11px] text-amber-400/80">
+                        Pending: {formatUSD(finances?.clientPending || 0)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-amber-400 text-sm">
+                      {formatINR(finances?.clientPendingInr || 0)}
+                    </span>
+                    <span className="text-[10px] text-slate-400 block">Est. INR pending</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center py-2 border-b border-slate-800">
+                  <div>
+                    <span className="text-slate-300 font-semibold block">Committed Team Payroll</span>
+                    <span className="text-[10px] text-slate-400">All developers paid in INR</span>
+                  </div>
+                  <span className="font-bold text-indigo-400 text-sm">
+                    - {formatINR(finances?.teamPayrollCommitted || 0)}
                   </span>
                 </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-800">
-                  <span className="text-slate-400">Client Payments Received</span>
-                  <span className="font-bold text-emerald-400">
-                    {formatCurrency(finances?.clientReceived || 0)}
+
+                <div className="flex justify-between items-center py-2 border-b border-slate-800">
+                  <div>
+                    <span className="text-slate-300 font-semibold block">Total Project Expenses</span>
+                    <span className="text-[10px] text-slate-400">Logged expenses in INR</span>
+                  </div>
+                  <span className="font-bold text-rose-400 text-sm">
+                    - {formatINR(finances?.expenses || 0)}
                   </span>
                 </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-800">
-                  <span className="text-slate-400">Client Pending Balance</span>
-                  <span className="font-bold text-amber-400">
-                    {formatCurrency(finances?.clientPending || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-800">
-                  <span className="text-slate-400">Committed Team Payroll</span>
-                  <span className="font-bold text-indigo-400">
-                    - {formatCurrency(finances?.teamPayrollCommitted || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-800">
-                  <span className="text-slate-400">Total Project Expenses</span>
-                  <span className="font-bold text-rose-400">
-                    - {formatCurrency(finances?.expenses || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between pt-3 font-extrabold text-sm">
-                  <span className="text-slate-200">Expected Net Profit</span>
-                  <span className="text-emerald-400 text-base">
-                    {formatCurrency(finances?.expectedProfit || 0)} (
-                    {formatPercentage(finances?.profitMargin || 0)})
-                  </span>
+
+                <div className="flex justify-between items-center pt-3 font-extrabold text-sm bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
+                  <div>
+                    <span className="text-slate-200 block text-xs uppercase tracking-wider">
+                      Expected Net Profit (INR)
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-normal">
+                      Based on Project Value (INR) - Payroll - Expenses
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-emerald-400 text-base font-extrabold block">
+                      {formatINR(finances?.expectedProfit || 0)}
+                    </span>
+                    <span className="text-[11px] text-emerald-400 font-bold">
+                      {formatPercentage(finances?.profitMargin || 0)} margin
+                    </span>
+                  </div>
                 </div>
               </div>
             </Card>
 
-            <Card title="Current Cash Flow Position" subtitle="Actual cash in/out collected">
+            <Card title="Current Cash Flow Position" subtitle="Actual cash collected & settled in INR">
               <div className="space-y-3.5 text-xs">
-                <div className="flex justify-between py-1.5 border-b border-slate-800">
-                  <span className="text-slate-400">Cash Received from Client</span>
-                  <span className="font-bold text-emerald-400">
-                    + {formatCurrency(finances?.cashReceived || 0)}
+                <div className="flex justify-between items-center py-2 border-b border-slate-800">
+                  <div>
+                    <span className="text-slate-300 font-semibold block">Actual INR Cash Received</span>
+                    <span className="text-[10px] text-slate-400">
+                      Calculated from exact payment exchange rates
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-emerald-400 text-sm">
+                      + {formatINR(finances?.cashReceivedInr || finances?.clientReceivedInr || 0)}
+                    </span>
+                    {projectCurrency === 'USD' && (
+                      <span className="text-[10px] text-slate-400 block">
+                        ({formatUSD(finances?.cashReceived || finances?.clientReceived || 0)})
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center py-2 border-b border-slate-800">
+                  <div>
+                    <span className="text-slate-300 font-semibold block">Team Payroll Paid Out</span>
+                    <span className="text-[10px] text-slate-400">Settled milestones in INR</span>
+                  </div>
+                  <span className="font-bold text-indigo-400 text-sm">
+                    - {formatINR(finances?.teamPayrollPaid || 0)}
                   </span>
                 </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-800">
-                  <span className="text-slate-400">Team Payroll Paid Out</span>
-                  <span className="font-bold text-indigo-400">
-                    - {formatCurrency(finances?.teamPayrollPaid || 0)}
+
+                <div className="flex justify-between items-center py-2 border-b border-slate-800">
+                  <div>
+                    <span className="text-slate-300 font-semibold block">Expenses Settled</span>
+                    <span className="text-[10px] text-slate-400">Total logged INR expenses</span>
+                  </div>
+                  <span className="font-bold text-rose-400 text-sm">
+                    - {formatINR(finances?.expenses || 0)}
                   </span>
                 </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-800">
-                  <span className="text-slate-400">Expenses Settled</span>
-                  <span className="font-bold text-rose-400">
-                    - {formatCurrency(finances?.expenses || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between pt-5 font-extrabold text-sm">
-                  <span className="text-slate-200">Net Cash In Hand</span>
-                  <span className="text-emerald-400 text-base">
-                    {formatCurrency(finances?.netCashPosition || 0)}
+
+                <div className="flex justify-between items-center pt-5 font-extrabold text-sm bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
+                  <div>
+                    <span className="text-slate-200 block text-xs uppercase tracking-wider">
+                      Net Cash In Hand (INR)
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-normal">
+                      Actual INR Received - Payroll Paid - Expenses
+                    </span>
+                  </div>
+                  <span className="text-emerald-400 text-base font-extrabold">
+                    {formatINR(finances?.netCashPosition || 0)}
                   </span>
                 </div>
               </div>
@@ -930,7 +1110,7 @@ export const ProjectDetail: React.FC = () => {
                   variant="primary"
                   size="sm"
                   icon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={() => setIsPaymentModalOpen(true)}
+                  onClick={handleOpenPaymentModal}
                 >
                   Record Client Payment
                 </Button>
@@ -944,7 +1124,10 @@ export const ProjectDetail: React.FC = () => {
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="border-b border-slate-800 text-slate-400 uppercase font-semibold">
-                      <th className="pb-3 pr-4">Amount</th>
+                      <th className="pb-3 pr-4">Original Amount</th>
+                      <th className="pb-3 px-3">Currency</th>
+                      <th className="pb-3 px-3">Exchange Rate</th>
+                      <th className="pb-3 px-4">INR Equivalent</th>
                       <th className="pb-3 px-4">Due Date</th>
                       <th className="pb-3 px-4">Payment Date</th>
                       <th className="pb-3 px-4">Method & Transaction</th>
@@ -953,40 +1136,63 @@ export const ProjectDetail: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    {payments.map((p: any) => (
-                      <tr key={p._id} className="hover:bg-slate-800/40">
-                        <td className="py-3 pr-4 font-extrabold text-emerald-400 text-sm">
-                          {formatCurrency(p.amount)}
-                        </td>
-                        <td className="py-3 px-4 text-slate-400">{formatDate(p.dueDate)}</td>
-                        <td className="py-3 px-4 text-slate-300">{formatDate(p.paymentDate)}</td>
-                        <td className="py-3 px-4">
-                          <span className="capitalize text-slate-200">
-                            {p.paymentMethod?.replace('_', ' ')}
-                          </span>
-                          {p.transactionId && (
-                            <span className="text-[10px] text-slate-400 font-mono block">
-                              {p.transactionId}
+                    {payments.map((p: any) => {
+                      const pCurrency = p.currency || 'USD';
+                      const pRate = p.exchangeRate || 1;
+                      const pInr = p.inrAmount ?? (pCurrency === 'USD' ? p.amount * pRate : p.amount);
+
+                      return (
+                        <tr key={p._id} className="hover:bg-slate-800/40">
+                          <td className="py-3 pr-4 font-extrabold text-white text-sm">
+                            {formatCurrency(p.amount, pCurrency)}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                pCurrency === 'USD'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                              }`}
+                            >
+                              {pCurrency}
                             </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge variant="status" status={p.status} size="sm">
-                            {p.status}
-                          </Badge>
-                        </td>
-                        <td className="py-3 pl-4 text-right text-slate-400">{p.notes || '-'}</td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="py-3 px-3 text-slate-300 font-mono text-[11px]">
+                            {pCurrency === 'USD' ? formatExchangeRate(pRate) : '1.00 (Base)'}
+                          </td>
+                          <td className="py-3 px-4 font-bold text-emerald-400 text-sm">
+                            {formatINR(pInr)}
+                          </td>
+                          <td className="py-3 px-4 text-slate-400">{formatDate(p.dueDate)}</td>
+                          <td className="py-3 px-4 text-slate-300">{formatDate(p.paymentDate)}</td>
+                          <td className="py-3 px-4">
+                            <span className="capitalize text-slate-200">
+                              {p.paymentMethod?.replace('_', ' ')}
+                            </span>
+                            {p.transactionId && (
+                              <span className="text-[10px] text-slate-400 font-mono block">
+                                {p.transactionId}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge variant="status" status={p.status} size="sm">
+                              {p.status}
+                            </Badge>
+                          </td>
+                          <td className="py-3 pl-4 text-right text-slate-400">{p.notes || '-'}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             )}
           </Card>
 
-          {/* Project Expenses Section */}
+          {/* Project Expenses Section (Always INR) */}
           <Card
-            title="Project Expenses"
+            title="Project Expenses (INR)"
             action={
               isAdmin && (
                 <Button
@@ -1009,7 +1215,7 @@ export const ProjectDetail: React.FC = () => {
                     <tr className="border-b border-slate-800 text-slate-400 uppercase font-semibold">
                       <th className="pb-3 pr-4">Expense Name</th>
                       <th className="pb-3 px-4">Category</th>
-                      <th className="pb-3 px-4">Amount</th>
+                      <th className="pb-3 px-4">Amount (INR)</th>
                       <th className="pb-3 px-4">Date</th>
                       <th className="pb-3 px-4">Payment Method</th>
                       {isAdmin && <th className="pb-3 pl-4 text-right">Action</th>}
@@ -1025,7 +1231,7 @@ export const ProjectDetail: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-3 px-4 font-bold text-rose-400">
-                          {formatCurrency(e.amount)}
+                          {formatINR(e.amount)}
                         </td>
                         <td className="py-3 px-4 text-slate-400">{formatDate(e.date)}</td>
                         <td className="py-3 px-4 text-slate-300 capitalize">
@@ -1135,7 +1341,7 @@ export const ProjectDetail: React.FC = () => {
         </form>
       </Modal>
 
-      {/* ASSIGN TEAM MEMBER MODAL */}
+      {/* ASSIGN TEAM MEMBER MODAL (ALWAYS INR) */}
       <Modal
         isOpen={isAssignModalOpen}
         onClose={() => setIsAssignModalOpen(false)}
@@ -1165,7 +1371,7 @@ export const ProjectDetail: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Agreed Project Payment ($)"
+              label="Agreed Project Payment (₹ INR)"
               type="number"
               required
               min={0}
@@ -1188,7 +1394,7 @@ export const ProjectDetail: React.FC = () => {
           </div>
 
           <p className="text-[11px] text-slate-400 italic">
-            * Once assigned, you can divide this agreed amount into payment milestones.
+            * Team compensation is always denominated and settled in INR (₹). You can break this into milestones next.
           </p>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
@@ -1196,17 +1402,17 @@ export const ProjectDetail: React.FC = () => {
               Cancel
             </Button>
             <Button type="submit" variant="primary">
-              Assign & Configure Payroll
+              Assign & Configure Payroll (INR)
             </Button>
           </div>
         </form>
       </Modal>
 
-      {/* ADD MILESTONE MODAL */}
+      {/* ADD MILESTONE MODAL (ALWAYS INR) */}
       <Modal
         isOpen={isMilestoneModalOpen}
         onClose={() => setIsMilestoneModalOpen(false)}
-        title="Add Project Payroll Milestone"
+        title="Add Project Payroll Milestone (INR)"
         maxWidth="md"
       >
         <form onSubmit={handleSaveMilestone} className="space-y-4">
@@ -1220,7 +1426,7 @@ export const ProjectDetail: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Milestone Amount ($)"
+              label="Milestone Amount (₹ INR)"
               type="number"
               required
               min={0}
@@ -1258,9 +1464,9 @@ export const ProjectDetail: React.FC = () => {
       >
         <form onSubmit={handleMarkMilestonePaid} className="space-y-4">
           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs flex justify-between items-center">
-            <span className="text-slate-400">Payout Amount</span>
+            <span className="text-slate-400">Payout Amount (INR)</span>
             <span className="text-base font-extrabold text-emerald-400">
-              {formatCurrency(payingMilestone?.amount)}
+              {formatINR(payingMilestone?.amount)}
             </span>
           </div>
 
@@ -1277,7 +1483,7 @@ export const ProjectDetail: React.FC = () => {
               value={payFormData.paymentMethod}
               onChange={(e) => setPayFormData({ ...payFormData, paymentMethod: e.target.value })}
               options={[
-                { value: 'bank_transfer', label: 'Bank Transfer' },
+                { value: 'bank_transfer', label: 'Bank Transfer (NEFT/IMPS/UPI)' },
                 { value: 'stripe', label: 'Stripe' },
                 { value: 'wise', label: 'Wise' },
                 { value: 'paypal', label: 'PayPal' },
@@ -1291,7 +1497,7 @@ export const ProjectDetail: React.FC = () => {
             label="Transaction ID / Receipt Reference"
             value={payFormData.transactionId}
             onChange={(e) => setPayFormData({ ...payFormData, transactionId: e.target.value })}
-            placeholder="e.g. TXN-WIRE-99210"
+            placeholder="e.g. UTR-BANK-99210"
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
@@ -1305,24 +1511,55 @@ export const ProjectDetail: React.FC = () => {
         </form>
       </Modal>
 
-      {/* RECORD CLIENT PAYMENT MODAL */}
+      {/* RECORD CLIENT PAYMENT MODAL (MULTI-CURRENCY WITH STORED EXCHANGE RATE) */}
       <Modal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
         title="Record Client Inflow Payment"
-        maxWidth="md"
+        maxWidth="lg"
       >
         <form onSubmit={handleSaveClientPayment} className="space-y-4">
-          <Input
-            label="Payment Amount ($)"
-            type="number"
-            required
-            min={0}
-            value={paymentFormData.amount}
-            onChange={(e) =>
-              setPaymentFormData({ ...paymentFormData, amount: Number(e.target.value) })
-            }
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <CurrencySelector
+              value={paymentFormData.currency}
+              onChange={(cur) => {
+                setPaymentFormData({
+                  ...paymentFormData,
+                  currency: cur,
+                  exchangeRate: cur === 'INR' ? 1 : 88,
+                });
+              }}
+              label="Payment Currency"
+            />
+            <Input
+              label={`Payment Amount (${paymentFormData.currency})`}
+              type="number"
+              required
+              min={0}
+              value={paymentFormData.amount}
+              onChange={(e) =>
+                setPaymentFormData({ ...paymentFormData, amount: Number(e.target.value) })
+              }
+            />
+          </div>
+
+          {paymentFormData.currency === 'USD' && (
+            <div className="space-y-3">
+              <ExchangeRateInput
+                value={paymentFormData.exchangeRate}
+                onChange={(rate) => setPaymentFormData({ ...paymentFormData, exchangeRate: rate })}
+                originalAmount={paymentFormData.amount}
+                label="Transaction Exchange Rate (USD → INR)"
+                helperText="Permanent historical rate for this payment. It will NOT fluctuate later."
+              />
+              <INRAmountDisplay
+                inrAmount={paymentFormData.amount * paymentFormData.exchangeRate}
+                originalAmount={paymentFormData.amount}
+                originalCurrency="USD"
+                exchangeRate={paymentFormData.exchangeRate}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
@@ -1340,8 +1577,8 @@ export const ProjectDetail: React.FC = () => {
               onChange={(e) => setPaymentFormData({ ...paymentFormData, paymentMethod: e.target.value })}
               options={[
                 { value: 'stripe', label: 'Stripe' },
-                { value: 'wire', label: 'Wire Transfer' },
-                { value: 'bank_transfer', label: 'Bank Transfer' },
+                { value: 'wire', label: 'Wire Transfer / Swift' },
+                { value: 'bank_transfer', label: 'Bank Transfer (NEFT/IMPS/UPI)' },
                 { value: 'paypal', label: 'PayPal' },
                 { value: 'card', label: 'Credit Card' },
               ]}
@@ -1365,7 +1602,7 @@ export const ProjectDetail: React.FC = () => {
           </div>
 
           <Input
-            label="Transaction ID"
+            label="Transaction ID / Wire Reference"
             value={paymentFormData.transactionId}
             onChange={(e) => setPaymentFormData({ ...paymentFormData, transactionId: e.target.value })}
             placeholder="INV-PAID-001"
@@ -1376,17 +1613,17 @@ export const ProjectDetail: React.FC = () => {
               Cancel
             </Button>
             <Button type="submit" variant="primary">
-              Record Inflow
+              Record Inflow Payment
             </Button>
           </div>
         </form>
       </Modal>
 
-      {/* RECORD EXPENSE MODAL */}
+      {/* RECORD EXPENSE MODAL (ALWAYS INR) */}
       <Modal
         isOpen={isExpenseModalOpen}
         onClose={() => setIsExpenseModalOpen(false)}
-        title="Add Project Expense"
+        title="Add Project Expense (INR)"
         maxWidth="md"
       >
         <form onSubmit={handleSaveExpense} className="space-y-4">
@@ -1415,7 +1652,7 @@ export const ProjectDetail: React.FC = () => {
               ]}
             />
             <Input
-              label="Amount ($)"
+              label="Amount (₹ INR)"
               type="number"
               required
               min={0}
@@ -1440,7 +1677,7 @@ export const ProjectDetail: React.FC = () => {
               onChange={(e) => setExpenseFormData({ ...expenseFormData, paymentMethod: e.target.value })}
               options={[
                 { value: 'credit_card', label: 'Corporate Card' },
-                { value: 'bank_transfer', label: 'Bank Transfer' },
+                { value: 'bank_transfer', label: 'Bank Transfer / UPI' },
                 { value: 'paypal', label: 'PayPal' },
                 { value: 'cash', label: 'Cash' },
               ]}
@@ -1452,7 +1689,7 @@ export const ProjectDetail: React.FC = () => {
               Cancel
             </Button>
             <Button type="submit" variant="primary">
-              Save Expense
+              Save Expense (INR)
             </Button>
           </div>
         </form>

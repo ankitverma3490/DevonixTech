@@ -31,7 +31,7 @@ import { ConfirmModal } from '../components/common/ConfirmModal.js';
 import { Badge } from '../components/common/Badge.js';
 import { LoadingSpinner } from '../components/common/LoadingSpinner.js';
 import { EmptyState } from '../components/common/EmptyState.js';
-import { formatCurrency } from '../utils/formatters.js';
+import { formatINR } from '../utils/formatters.js';
 import { IClient } from '../types/index.js';
 
 export const Clients: React.FC = () => {
@@ -127,9 +127,14 @@ export const Clients: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-white tracking-tight">Client Management</h2>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-2xl font-extrabold text-white tracking-tight">Client Portfolio</h2>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              Reporting: INR Base
+            </span>
+          </div>
           <p className="text-xs text-slate-400 mt-1">
-            Manage your client portfolio, ongoing contracts, and billing relationships
+            Manage your global and domestic client accounts, ongoing contracts, and billing relationships
           </p>
         </div>
         {isAdmin && (
@@ -185,8 +190,8 @@ export const Clients: React.FC = () => {
                   <th className="py-3.5 px-4">Contact Details</th>
                   <th className="py-3.5 px-4">Country</th>
                   <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4 text-right">Total Contract Value</th>
-                  <th className="py-3.5 px-4 text-right">Received / Pending</th>
+                  <th className="py-3.5 px-4 text-right">Contract Value (INR)</th>
+                  <th className="py-3.5 px-4 text-right">Received / Pending (INR)</th>
                   <th className="py-3.5 px-6 text-right">Actions</th>
                 </tr>
               </thead>
@@ -216,17 +221,17 @@ export const Clients: React.FC = () => {
                       </Badge>
                     </td>
                     <td className="py-4 px-4 text-right font-extrabold text-slate-200">
-                      {formatCurrency(c.totalProjectValue || 0)}
+                      {formatINR(c.totalProjectValue || 0)}
                       <div className="text-[10px] text-slate-400 font-normal">
                         {c.projectCount || 0} projects
                       </div>
                     </td>
                     <td className="py-4 px-4 text-right">
                       <div className="font-extrabold text-emerald-400">
-                        {formatCurrency(c.totalReceived || 0)}
+                        {formatINR(c.totalReceived || 0)}
                       </div>
                       <div className="text-[10px] font-semibold text-amber-400">
-                        {formatCurrency(c.totalPending || 0)} pending
+                        {formatINR(c.totalPending || 0)} pending
                       </div>
                     </td>
                     <td className="py-4 px-6 text-right">
@@ -301,29 +306,28 @@ export const Clients: React.FC = () => {
               required
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="contact@acme.io"
+              placeholder="contact@company.com"
             />
             <Input
-              label="Country"
-              required
-              value={formData.country}
-              onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-              placeholder="e.g. United States"
+              label="Phone"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              placeholder="+1 555-0199"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Phone Number"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              placeholder="+1 (555) 000-0000"
-            />
-            <Input
               label="WhatsApp"
               value={formData.whatsapp}
               onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
-              placeholder="+15550000000"
+              placeholder="+1 555-0199"
+            />
+            <Input
+              label="Country"
+              value={formData.country}
+              onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+              placeholder="e.g. United States or India"
             />
           </div>
 
@@ -332,10 +336,10 @@ export const Clients: React.FC = () => {
               label="Website"
               value={formData.website}
               onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-              placeholder="https://example.com"
+              placeholder="https://acme.com"
             />
             <Select
-              label="Status"
+              label="Account Status"
               value={formData.status}
               onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
               options={[
@@ -349,19 +353,19 @@ export const Clients: React.FC = () => {
             label="Address"
             value={formData.address}
             onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-            placeholder="Office Address / City"
+            placeholder="Office Address..."
           />
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-              Notes / Background Info
+              Client Notes
             </label>
             <textarea
-              rows={3}
-              className="w-full rounded-lg bg-slate-900/80 border border-slate-700/80 text-slate-100 placeholder-slate-500 text-sm px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              rows={2}
+              className="w-full rounded-lg bg-slate-900/80 border border-slate-700/80 text-slate-100 text-sm px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Key stakeholders, billing preferences, contract terms..."
+              placeholder="Special billing or project preferences..."
             />
           </div>
 
@@ -388,8 +392,8 @@ export const Clients: React.FC = () => {
         isOpen={!!deletingId}
         onClose={() => setDeletingId(null)}
         onConfirm={handleConfirmDelete}
-        title="Delete Client"
-        message="Are you sure you want to delete this client? This action cannot be undone if there are no active projects linked."
+        title="Delete Client Record"
+        message="Are you sure you want to delete this client? Linked projects will need reassignment."
         confirmText="Delete Client"
       />
     </div>

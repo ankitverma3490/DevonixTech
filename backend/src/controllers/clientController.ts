@@ -31,18 +31,28 @@ export const getClients = async (req: AuthRequest, res: Response): Promise<void>
         const projects = await Project.find({ client: client._id });
         const payments = await ClientPayment.find({ client: client._id });
 
-        const totalProjectValue = projects.reduce((sum, p) => sum + (p.projectValue || 0), 0);
-        const totalReceived = payments
+        const totalProjectValueInr = projects.reduce((sum, p) => {
+          if (p.estimatedInrValue) return sum + p.estimatedInrValue;
+          const rate = p.estimatedExchangeRate || (p.currency === 'USD' ? 88 : 1);
+          return sum + (p.currency === 'USD' ? Math.round(p.projectValue * rate) : p.projectValue);
+        }, 0);
+
+        const totalReceivedInr = payments
           .filter((p) => p.status === 'paid')
-          .reduce((sum, p) => sum + (p.amount || 0), 0);
-        const totalPending = Math.max(0, totalProjectValue - totalReceived);
+          .reduce((sum, p) => {
+            if (p.inrAmount !== undefined && p.inrAmount !== null) return sum + p.inrAmount;
+            const rate = p.exchangeRate || (p.currency === 'USD' ? 88 : 1);
+            return sum + (p.currency === 'USD' ? Math.round(p.amount * rate) : p.amount);
+          }, 0);
+
+        const totalPendingInr = Math.max(0, totalProjectValueInr - totalReceivedInr);
 
         return {
           ...client.toObject(),
           projectCount: projects.length,
-          totalProjectValue,
-          totalReceived,
-          totalPending,
+          totalProjectValue: totalProjectValueInr,
+          totalReceived: totalReceivedInr,
+          totalPending: totalPendingInr,
         };
       })
     );
@@ -71,11 +81,21 @@ export const getClientById = async (req: AuthRequest, res: Response): Promise<vo
       .populate('project', 'name projectId')
       .sort({ paymentDate: -1, createdAt: -1 });
 
-    const totalProjectValue = projects.reduce((sum, p) => sum + (p.projectValue || 0), 0);
-    const totalReceived = payments
+    const totalProjectValueInr = projects.reduce((sum, p) => {
+      if (p.estimatedInrValue) return sum + p.estimatedInrValue;
+      const rate = p.estimatedExchangeRate || (p.currency === 'USD' ? 88 : 1);
+      return sum + (p.currency === 'USD' ? Math.round(p.projectValue * rate) : p.projectValue);
+    }, 0);
+
+    const totalReceivedInr = payments
       .filter((p) => p.status === 'paid')
-      .reduce((sum, p) => sum + (p.amount || 0), 0);
-    const totalPending = Math.max(0, totalProjectValue - totalReceived);
+      .reduce((sum, p) => {
+        if (p.inrAmount !== undefined && p.inrAmount !== null) return sum + p.inrAmount;
+        const rate = p.exchangeRate || (p.currency === 'USD' ? 88 : 1);
+        return sum + (p.currency === 'USD' ? Math.round(p.amount * rate) : p.amount);
+      }, 0);
+
+    const totalPendingInr = Math.max(0, totalProjectValueInr - totalReceivedInr);
 
     res.json({
       success: true,
@@ -83,9 +103,9 @@ export const getClientById = async (req: AuthRequest, res: Response): Promise<vo
         ...client.toObject(),
         projects,
         payments,
-        totalProjectValue,
-        totalReceived,
-        totalPending,
+        totalProjectValue: totalProjectValueInr,
+        totalReceived: totalReceivedInr,
+        totalPending: totalPendingInr,
       },
     });
   } catch (error: any) {

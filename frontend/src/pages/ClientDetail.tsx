@@ -20,7 +20,8 @@ import { fetchClientById } from '../store/slices/clientSlice.js';
 import { Card } from '../components/common/Card.js';
 import { Badge } from '../components/common/Badge.js';
 import { LoadingSpinner } from '../components/common/LoadingSpinner.js';
-import { formatCurrency, formatDate } from '../utils/formatters.js';
+import { formatCurrency, formatINR, formatUSD, formatExchangeRate, formatDate } from '../utils/formatters.js';
+import { Currency } from '../types/index.js';
 
 export const ClientDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -74,20 +75,20 @@ export const ClientDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* Financial KPIs for Client */}
+      {/* Financial KPIs for Client (Consolidated in Base INR) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <Card className="border-l-4 border-l-blue-500">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Project Value
+                Total Contract Value (INR Base)
               </p>
               <h3 className="text-2xl font-extrabold text-white mt-1">
-                {formatCurrency(selectedClient.totalProjectValue || 0)}
+                {formatINR(selectedClient.totalProjectValue || 0)}
               </h3>
             </div>
-            <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400">
-              <DollarSign className="w-5 h-5" />
+            <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400 font-bold text-lg">
+              ₹
             </div>
           </div>
           <p className="text-[11px] text-slate-400 mt-3">{projects.length} Total Projects</p>
@@ -97,10 +98,10 @@ export const ClientDetail: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Received
+                Total Collected (INR Base)
               </p>
               <h3 className="text-2xl font-extrabold text-emerald-400 mt-1">
-                {formatCurrency(selectedClient.totalReceived || 0)}
+                {formatINR(selectedClient.totalReceived || 0)}
               </h3>
             </div>
             <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400">
@@ -114,10 +115,10 @@ export const ClientDetail: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Pending
+                Total Pending (INR Base)
               </p>
               <h3 className="text-2xl font-extrabold text-amber-400 mt-1">
-                {formatCurrency(selectedClient.totalPending || 0)}
+                {formatINR(selectedClient.totalPending || 0)}
               </h3>
             </div>
             <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400">
@@ -214,50 +215,68 @@ export const ClientDetail: React.FC = () => {
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 uppercase font-semibold">
                   <th className="pb-3 pr-4">Project</th>
+                  <th className="pb-3 px-3">Currency</th>
                   <th className="pb-3 px-4">Status</th>
                   <th className="pb-3 px-4">Priority</th>
                   <th className="pb-3 px-4">Manager</th>
-                  <th className="pb-3 px-4">Project Value</th>
-                  <th className="pb-3 px-4">Timeline</th>
+                  <th className="pb-3 px-4 text-right">Original Value</th>
+                  <th className="pb-3 px-4 text-right">INR Value</th>
                   <th className="pb-3 pl-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {projects.map((p: any) => (
-                  <tr key={p._id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3.5 pr-4 font-bold text-slate-200">
-                      <div>{p.name}</div>
-                      <span className="text-[10px] text-indigo-400 font-mono">{p.projectId}</span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <Badge variant="status" status={p.status} size="sm">
-                        {p.status}
-                      </Badge>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <Badge variant="priority" status={p.priority} size="sm">
-                        {p.priority}
-                      </Badge>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-300">
-                      {p.projectManager?.name || 'Assigned PM'}
-                    </td>
-                    <td className="py-3.5 px-4 font-extrabold text-slate-200">
-                      {formatCurrency(p.projectValue)}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-400 text-[11px]">
-                      {formatDate(p.startDate)} → {formatDate(p.expectedEndDate)}
-                    </td>
-                    <td className="py-3.5 pl-4 text-right">
-                      <Link
-                        to={`/projects/${p._id}`}
-                        className="inline-flex items-center gap-1 text-xs font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20"
-                      >
-                        Workspace <ArrowUpRight className="w-3 h-3" />
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {projects.map((p: any) => {
+                  const pCurr: Currency = p.currency || 'USD';
+                  const pRate = p.estimatedExchangeRate || (pCurr === 'USD' ? 88 : 1);
+                  const pInr = p.estimatedInrValue || (pCurr === 'USD' ? p.projectValue * pRate : p.projectValue);
+
+                  return (
+                    <tr key={p._id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3.5 pr-4 font-bold text-slate-200">
+                        <div>{p.name}</div>
+                        <span className="text-[10px] text-indigo-400 font-mono">{p.projectId}</span>
+                      </td>
+                      <td className="py-3.5 px-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            pCurr === 'USD'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                          }`}
+                        >
+                          {pCurr}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <Badge variant="status" status={p.status} size="sm">
+                          {p.status}
+                        </Badge>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <Badge variant="priority" status={p.priority} size="sm">
+                          {p.priority}
+                        </Badge>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-300">
+                        {p.projectManager?.name || 'Assigned PM'}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-extrabold text-slate-200">
+                        {formatCurrency(p.projectValue, pCurr)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-extrabold text-white">
+                        {formatINR(pInr)}
+                      </td>
+                      <td className="py-3.5 pl-4 text-right">
+                        <Link
+                          to={`/projects/${p._id}`}
+                          className="inline-flex items-center gap-1 text-xs font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20"
+                        >
+                          Workspace <ArrowUpRight className="w-3 h-3" />
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -267,7 +286,7 @@ export const ClientDetail: React.FC = () => {
       {/* Client Payment History */}
       <Card
         title="Client Payment Transactions"
-        subtitle="Complete ledger of payments received and pending invoices"
+        subtitle="Complete ledger of payments received and pending invoices with locked exchange rates"
       >
         {payments.length === 0 ? (
           <p className="text-xs text-slate-400 py-4 text-center">No payment history recorded.</p>
@@ -277,37 +296,63 @@ export const ClientDetail: React.FC = () => {
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 uppercase font-semibold">
                   <th className="pb-3 pr-4">Project</th>
-                  <th className="pb-3 px-4">Amount</th>
+                  <th className="pb-3 px-4 text-right">Original Amount</th>
+                  <th className="pb-3 px-3">Currency</th>
+                  <th className="pb-3 px-3">Exchange Rate</th>
+                  <th className="pb-3 px-4 text-right">INR Equivalent</th>
                   <th className="pb-3 px-4">Due Date</th>
                   <th className="pb-3 px-4">Payment Date</th>
-                  <th className="pb-3 px-4">Method & Transaction</th>
+                  <th className="pb-3 px-4">Method & Trans.</th>
                   <th className="pb-3 pl-4 text-right">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {payments.map((pm: any) => (
-                  <tr key={pm._id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3.5 pr-4 font-bold text-slate-200">
-                      {pm.project?.name || 'Project'}
-                    </td>
-                    <td className="py-3.5 px-4 font-extrabold text-emerald-400 text-sm">
-                      {formatCurrency(pm.amount)}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-400">{formatDate(pm.dueDate)}</td>
-                    <td className="py-3.5 px-4 text-slate-300">{formatDate(pm.paymentDate)}</td>
-                    <td className="py-3.5 px-4 text-slate-300">
-                      <div className="font-medium capitalize">{pm.paymentMethod?.replace('_', ' ')}</div>
-                      {pm.transactionId && (
-                        <div className="text-[10px] text-slate-400 font-mono">{pm.transactionId}</div>
-                      )}
-                    </td>
-                    <td className="py-3.5 pl-4 text-right">
-                      <Badge variant="status" status={pm.status} size="sm">
-                        {pm.status}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
+                {payments.map((pm: any) => {
+                  const pmCurr: Currency = pm.currency || 'USD';
+                  const pmRate = pm.exchangeRate || (pmCurr === 'INR' ? 1 : 88);
+                  const pmInr = pm.inrAmount ?? (pmCurr === 'USD' ? pm.amount * pmRate : pm.amount);
+
+                  return (
+                    <tr key={pm._id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3.5 pr-4 font-bold text-slate-200">
+                        {pm.project?.name || 'Project'}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-extrabold text-white text-sm">
+                        {formatCurrency(pm.amount, pmCurr)}
+                      </td>
+                      <td className="py-3.5 px-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            pmCurr === 'USD'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                          }`}
+                        >
+                          {pmCurr}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-3 text-slate-300 font-mono text-[11px]">
+                        {pmCurr === 'USD' ? formatExchangeRate(pmRate) : '1.00 (Base)'}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-extrabold text-emerald-400 text-sm">
+                        {formatINR(pmInr)}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-400">{formatDate(pm.dueDate)}</td>
+                      <td className="py-3.5 px-4 text-slate-300">{formatDate(pm.paymentDate)}</td>
+                      <td className="py-3.5 px-4 text-slate-300">
+                        <div className="font-medium capitalize">{pm.paymentMethod?.replace('_', ' ')}</div>
+                        {pm.transactionId && (
+                          <div className="text-[10px] text-slate-400 font-mono">{pm.transactionId}</div>
+                        )}
+                      </td>
+                      <td className="py-3.5 pl-4 text-right">
+                        <Badge variant="status" status={pm.status} size="sm">
+                          {pm.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

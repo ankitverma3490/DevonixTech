@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Clock,
   ArrowUpRight,
+  Globe,
 } from 'lucide-react';
 import { RootState, AppDispatch } from '../store/index.js';
 import {
@@ -23,7 +24,7 @@ import { Card } from '../components/common/Card.js';
 import { Button } from '../components/common/Button.js';
 import { Input } from '../components/common/Input.js';
 import { LoadingSpinner } from '../components/common/LoadingSpinner.js';
-import { formatCurrency, formatPercentage } from '../utils/formatters.js';
+import { formatCurrency, formatINR, formatUSD, formatPercentage } from '../utils/formatters.js';
 
 export const Reports: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -58,9 +59,14 @@ export const Reports: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-white tracking-tight">Executive Reports</h2>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-2xl font-extrabold text-white tracking-tight">Executive Reports</h2>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              Reporting Base: INR (₹)
+            </span>
+          </div>
           <p className="text-xs text-slate-400 mt-1">
-            Audited financial breakdown of revenue, project-based payroll commitments, and net profitability
+            Consolidated multi-currency audit of revenue, developer payroll disbursements, and INR profitability
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -86,7 +92,7 @@ export const Reports: React.FC = () => {
           }`}
         >
           <TrendingUp className="w-4 h-4 text-emerald-400" />
-          <span>Profit & Margin Report</span>
+          <span>Profit & Margin Report (INR)</span>
         </button>
 
         <button
@@ -98,7 +104,7 @@ export const Reports: React.FC = () => {
           }`}
         >
           <DollarSign className="w-4 h-4 text-blue-400" />
-          <span>Revenue & Client Receivables</span>
+          <span>Revenue & Client Receivables (INR)</span>
         </button>
 
         <button
@@ -110,7 +116,7 @@ export const Reports: React.FC = () => {
           }`}
         >
           <Users2 className="w-4 h-4 text-purple-400" />
-          <span>Team Payroll Disbursements</span>
+          <span>Team Payroll Disbursements (INR)</span>
         </button>
       </div>
 
@@ -152,49 +158,49 @@ export const Reports: React.FC = () => {
 
       {/* REPORT CONTENT */}
       {isLoading ? (
-        <LoadingSpinner message="Generating report..." />
+        <LoadingSpinner message="Generating consolidated INR report..." />
       ) : activeReportTab === 'profit' ? (
         <div className="space-y-6">
-          {/* Profit Summary Cards */}
+          {/* Profit Summary Cards (Strictly Consolidated in Base INR) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <Card className="border-l-4 border-l-blue-500">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Revenue
+                Total Revenue (INR Base)
               </span>
               <div className="text-2xl font-extrabold text-blue-400 mt-1">
-                {formatCurrency(profitReport?.summary?.cashRevenue || 0)}
+                {formatINR(profitReport?.summary?.cashRevenue || 0)}
               </div>
               <div className="text-[11px] text-slate-400 mt-2">
-                Contract: {formatCurrency(profitReport?.summary?.totalContractRevenue || 0)}
+                Contract Est: {formatINR(profitReport?.summary?.totalContractRevenue || 0)}
               </div>
             </Card>
 
             <Card className="border-l-4 border-l-purple-500">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Team Payroll Paid
+                Team Payroll Paid (INR)
               </span>
               <div className="text-2xl font-extrabold text-purple-400 mt-1">
-                {formatCurrency(profitReport?.summary?.payrollPaid || 0)}
+                {formatINR(profitReport?.summary?.payrollPaid || 0)}
               </div>
-              <div className="text-[11px] text-slate-400 mt-2">Total team payouts</div>
+              <div className="text-[11px] text-slate-400 mt-2">Total developer payouts</div>
             </Card>
 
             <Card className="border-l-4 border-l-rose-500">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Expenses
+                Total Expenses (INR)
               </span>
               <div className="text-2xl font-extrabold text-rose-400 mt-1">
-                {formatCurrency(profitReport?.summary?.totalExpenses || 0)}
+                {formatINR(profitReport?.summary?.totalExpenses || 0)}
               </div>
               <div className="text-[11px] text-slate-400 mt-2">Cloud, APIs, software</div>
             </Card>
 
             <Card className="border-l-4 border-l-emerald-500">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Net Profit
+                Net Profit (INR Base)
               </span>
               <div className="text-2xl font-extrabold text-emerald-400 mt-1">
-                {formatCurrency(profitReport?.summary?.cashProfit || 0)}
+                {formatINR(profitReport?.summary?.cashProfit || 0)}
               </div>
               <div className="text-[11px] text-emerald-400 font-bold mt-2">
                 {formatPercentage(profitReport?.summary?.cashMargin || 0)} Margin
@@ -204,19 +210,20 @@ export const Reports: React.FC = () => {
 
           {/* Project Profitability Table */}
           <Card
-            title="Project Profitability Statement"
-            subtitle="Contract valuation, committed costs, and net margin realized across projects"
+            title="Project Profitability Statement (INR Base)"
+            subtitle="Contract valuation, committed costs, and net margin realized across projects in INR"
           >
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-800 bg-slate-900/80 text-slate-400 uppercase font-semibold">
                     <th className="py-3 px-6">Project & Client</th>
-                    <th className="py-3 px-4 text-right">Contract Value</th>
-                    <th className="py-3 px-4 text-right">Revenue Received</th>
-                    <th className="py-3 px-4 text-right">Team Payroll</th>
-                    <th className="py-3 px-4 text-right">Expenses</th>
-                    <th className="py-3 px-4 text-right">Expected Profit</th>
+                    <th className="py-3 px-3">Currency</th>
+                    <th className="py-3 px-4 text-right">Contract Value (INR)</th>
+                    <th className="py-3 px-4 text-right">Revenue Received (INR)</th>
+                    <th className="py-3 px-4 text-right">Team Payroll (INR)</th>
+                    <th className="py-3 px-4 text-right">Expenses (INR)</th>
+                    <th className="py-3 px-4 text-right">Expected Profit (INR)</th>
                     <th className="py-3 px-6 text-right">Margin %</th>
                   </tr>
                 </thead>
@@ -229,20 +236,31 @@ export const Reports: React.FC = () => {
                           {p.companyName} • <span className="font-mono text-indigo-400">{p.projectId}</span>
                         </div>
                       </td>
+                      <td className="py-3.5 px-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            p.currency === 'USD'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                          }`}
+                        >
+                          {p.currency || 'USD'}
+                        </span>
+                      </td>
                       <td className="py-3.5 px-4 text-right font-bold text-slate-200">
-                        {formatCurrency(p.contractValue)}
+                        {formatINR(p.contractValue)}
                       </td>
                       <td className="py-3.5 px-4 text-right text-emerald-400 font-bold">
-                        {formatCurrency(p.clientReceived)}
+                        {formatINR(p.clientReceived)}
                       </td>
                       <td className="py-3.5 px-4 text-right text-indigo-400 font-bold">
-                        {formatCurrency(p.teamPayrollCommitted)}
+                        {formatINR(p.teamPayrollCommitted)}
                       </td>
                       <td className="py-3.5 px-4 text-right text-rose-400 font-bold">
-                        {formatCurrency(p.expenses)}
+                        {formatINR(p.expenses)}
                       </td>
                       <td className="py-3.5 px-4 text-right font-extrabold text-emerald-400">
-                        {formatCurrency(p.expectedProfit)}
+                        {formatINR(p.expectedProfit)}
                       </td>
                       <td className="py-3.5 px-6 text-right">
                         <span className="font-extrabold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
@@ -258,38 +276,38 @@ export const Reports: React.FC = () => {
         </div>
       ) : activeReportTab === 'revenue' ? (
         <div className="space-y-6">
-          {/* Revenue Summary Cards */}
+          {/* Revenue Summary Cards (INR Base) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <Card className="border-l-4 border-l-blue-500">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Project Value
+                Total Project Value (INR Base)
               </span>
               <div className="text-2xl font-extrabold text-white mt-1">
-                {formatCurrency(revenueReport?.summary?.totalProjectValue || 0)}
+                {formatINR(revenueReport?.summary?.totalProjectValue || 0)}
               </div>
             </Card>
 
             <Card className="border-l-4 border-l-emerald-500">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Revenue Collected
+                Total Revenue Collected (INR Base)
               </span>
               <div className="text-2xl font-extrabold text-emerald-400 mt-1">
-                {formatCurrency(revenueReport?.summary?.totalReceived || 0)}
+                {formatINR(revenueReport?.summary?.totalReceived || 0)}
               </div>
             </Card>
 
             <Card className="border-l-4 border-l-amber-500">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Pending Receivables
+                Total Pending Receivables (INR Base)
               </span>
               <div className="text-2xl font-extrabold text-amber-400 mt-1">
-                {formatCurrency(revenueReport?.summary?.totalPending || 0)}
+                {formatINR(revenueReport?.summary?.totalPending || 0)}
               </div>
             </Card>
           </div>
 
           {/* Client Inflow Breakdown Table */}
-          <Card title="Client Receivables Breakdown">
+          <Card title="Client Receivables Breakdown (INR Base)">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
@@ -297,9 +315,9 @@ export const Reports: React.FC = () => {
                     <th className="py-3 px-6">Client Company</th>
                     <th className="py-3 px-4">Contact Person</th>
                     <th className="py-3 px-4 text-center">Projects</th>
-                    <th className="py-3 px-4 text-right">Project Value</th>
-                    <th className="py-3 px-4 text-right">Received</th>
-                    <th className="py-3 px-6 text-right">Pending Balance</th>
+                    <th className="py-3 px-4 text-right">Project Value (INR)</th>
+                    <th className="py-3 px-4 text-right">Received (INR)</th>
+                    <th className="py-3 px-6 text-right">Pending Balance (INR)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
@@ -311,13 +329,13 @@ export const Reports: React.FC = () => {
                         {c.projectCount}
                       </td>
                       <td className="py-3.5 px-4 text-right font-bold text-slate-200">
-                        {formatCurrency(c.projectValue)}
+                        {formatINR(c.projectValue)}
                       </td>
                       <td className="py-3.5 px-4 text-right font-bold text-emerald-400">
-                        {formatCurrency(c.received)}
+                        {formatINR(c.received)}
                       </td>
                       <td className="py-3.5 px-6 text-right font-extrabold text-amber-400">
-                        {formatCurrency(c.pending)}
+                        {formatINR(c.pending)}
                       </td>
                     </tr>
                   ))}
@@ -328,38 +346,38 @@ export const Reports: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Payroll Summary Cards */}
+          {/* Payroll Summary Cards (Strictly INR) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <Card className="border-l-4 border-l-indigo-500">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Team Agreed Cost
+                Total Team Agreed Cost (INR)
               </span>
               <div className="text-2xl font-extrabold text-white mt-1">
-                {formatCurrency(payrollReport?.summary?.totalAgreedCost || 0)}
+                {formatINR(payrollReport?.summary?.totalAgreedCost || 0)}
               </div>
             </Card>
 
             <Card className="border-l-4 border-l-emerald-500">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Paid Disbursements
+                Total Paid Disbursements (INR)
               </span>
               <div className="text-2xl font-extrabold text-emerald-400 mt-1">
-                {formatCurrency(payrollReport?.summary?.totalPaid || 0)}
+                {formatINR(payrollReport?.summary?.totalPaid || 0)}
               </div>
             </Card>
 
             <Card className="border-l-4 border-l-amber-500">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Total Pending Payroll
+                Total Pending Payroll (INR)
               </span>
               <div className="text-2xl font-extrabold text-amber-400 mt-1">
-                {formatCurrency(payrollReport?.summary?.totalPending || 0)}
+                {formatINR(payrollReport?.summary?.totalPending || 0)}
               </div>
             </Card>
           </div>
 
           {/* Member Payroll Breakdown Table */}
-          <Card title="Team Compensation Breakdown">
+          <Card title="Team Compensation Breakdown (INR)">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
@@ -367,9 +385,9 @@ export const Reports: React.FC = () => {
                     <th className="py-3 px-6">Member Name</th>
                     <th className="py-3 px-4">Role</th>
                     <th className="py-3 px-4 text-center">Projects Assigned</th>
-                    <th className="py-3 px-4 text-right">Agreed Compensation</th>
-                    <th className="py-3 px-4 text-right">Paid Out</th>
-                    <th className="py-3 px-6 text-right">Pending Balance</th>
+                    <th className="py-3 px-4 text-right">Agreed Compensation (INR)</th>
+                    <th className="py-3 px-4 text-right">Paid Out (INR)</th>
+                    <th className="py-3 px-6 text-right">Pending Balance (INR)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
@@ -383,13 +401,13 @@ export const Reports: React.FC = () => {
                         {m.projectCount}
                       </td>
                       <td className="py-3.5 px-4 text-right font-bold text-slate-200">
-                        {formatCurrency(m.agreed)}
+                        {formatINR(m.agreed)}
                       </td>
                       <td className="py-3.5 px-4 text-right font-bold text-emerald-400">
-                        {formatCurrency(m.paid)}
+                        {formatINR(m.paid)}
                       </td>
                       <td className="py-3.5 px-6 text-right font-extrabold text-amber-400">
-                        {formatCurrency(m.pending)}
+                        {formatINR(m.pending)}
                       </td>
                     </tr>
                   ))}

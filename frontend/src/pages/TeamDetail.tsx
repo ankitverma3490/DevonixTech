@@ -21,7 +21,7 @@ import { Card } from '../components/common/Card.js';
 import { Badge } from '../components/common/Badge.js';
 import { ProgressBar } from '../components/common/ProgressBar.js';
 import { LoadingSpinner } from '../components/common/LoadingSpinner.js';
-import { formatCurrency, formatDate } from '../utils/formatters.js';
+import { formatINR, formatDate } from '../utils/formatters.js';
 
 export const TeamDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -75,40 +75,42 @@ export const TeamDetail: React.FC = () => {
                 <span>{selectedMember.role?.replace('_', ' ')}</span>
                 <span className="text-slate-500">•</span>
                 <span className="text-slate-400">Joined {formatDate(selectedMember.joiningDate)}</span>
+                <span className="text-slate-500">•</span>
+                <span className="text-emerald-400 font-bold">Paid in INR (₹)</span>
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Financial KPIs for Member */}
+      {/* Financial KPIs for Member (Strictly INR) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <Card className="border-l-4 border-l-blue-500">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Total Agreed Earnings
+            Total Agreed Earnings (INR)
           </span>
           <div className="text-2xl font-extrabold text-white mt-1">
-            {formatCurrency(selectedMember.totalAgreedEarnings || 0)}
+            {formatINR(selectedMember.totalAgreedEarnings || 0)}
           </div>
           <div className="text-[11px] text-slate-400 mt-2">{projects.length} Assigned Projects</div>
         </Card>
 
         <Card className="border-l-4 border-l-emerald-500">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Total Paid Out
+            Total Paid Out (INR)
           </span>
           <div className="text-2xl font-extrabold text-emerald-400 mt-1">
-            {formatCurrency(selectedMember.totalPaid || 0)}
+            {formatINR(selectedMember.totalPaid || 0)}
           </div>
           <div className="text-[11px] text-slate-400 mt-2">Settled project milestones</div>
         </Card>
 
         <Card className="border-l-4 border-l-amber-500">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Pending Payments
+            Pending Payments (INR)
           </span>
           <div className="text-2xl font-extrabold text-amber-400 mt-1">
-            {formatCurrency(selectedMember.pendingPayments || 0)}
+            {formatINR(selectedMember.pendingPayments || 0)}
           </div>
           <div className="text-[11px] text-slate-400 mt-2">To be settled upon completion</div>
         </Card>
@@ -195,7 +197,7 @@ export const TeamDetail: React.FC = () => {
       {/* Assigned Projects Table */}
       <Card
         title="Assigned Projects & Agreed Compensation"
-        subtitle="Individual project compensation breakdown and payout progress"
+        subtitle="Individual project compensation breakdown and payout progress in INR (₹)"
       >
         {projects.length === 0 ? (
           <p className="text-xs text-slate-400 py-4 text-center">No assigned projects.</p>
@@ -207,9 +209,9 @@ export const TeamDetail: React.FC = () => {
                   <th className="pb-3 pr-4">Project</th>
                   <th className="pb-3 px-4">Role in Project</th>
                   <th className="pb-3 px-4">Project Status</th>
-                  <th className="pb-3 px-4 text-right">Agreed Payment</th>
-                  <th className="pb-3 px-4 text-right">Paid Amount</th>
-                  <th className="pb-3 px-4 text-right">Pending Amount</th>
+                  <th className="pb-3 px-4 text-right">Agreed Payment (INR)</th>
+                  <th className="pb-3 px-4 text-right">Paid Amount (INR)</th>
+                  <th className="pb-3 px-4 text-right">Pending Amount (INR)</th>
                   <th className="pb-3 pl-4 text-right">Action</th>
                 </tr>
               </thead>
@@ -230,14 +232,14 @@ export const TeamDetail: React.FC = () => {
                           {prj.status || 'active'}
                         </Badge>
                       </td>
-                      <td className="py-3.5 px-4 text-right font-extrabold text-slate-200">
-                        {formatCurrency(p.agreedAmount)}
+                      <td className="py-3.5 px-4 text-right font-extrabold text-white">
+                        {formatINR(p.agreedAmount)}
                       </td>
                       <td className="py-3.5 px-4 text-right font-bold text-emerald-400">
-                        {formatCurrency(p.totalPaid)}
+                        {formatINR(p.totalPaid)}
                       </td>
                       <td className="py-3.5 px-4 text-right font-bold text-amber-400">
-                        {formatCurrency(p.pendingAmount)}
+                        {formatINR(p.pendingAmount)}
                       </td>
                       <td className="py-3.5 pl-4 text-right">
                         <Link
@@ -259,7 +261,7 @@ export const TeamDetail: React.FC = () => {
       {/* Milestone Payment History */}
       <Card
         title="Milestone Settlement History"
-        subtitle="Individual milestone tranches and disbursements"
+        subtitle="Individual milestone tranches and disbursements in INR (₹)"
       >
         {milestones.length === 0 ? (
           <p className="text-xs text-slate-400 py-4 text-center">No milestone records found.</p>
@@ -270,7 +272,7 @@ export const TeamDetail: React.FC = () => {
                 <tr className="border-b border-slate-800 text-slate-400 uppercase font-semibold">
                   <th className="pb-3 pr-4">Milestone Title</th>
                   <th className="pb-3 px-4">Project</th>
-                  <th className="pb-3 px-4">Amount</th>
+                  <th className="pb-3 px-4 text-right">Amount (INR)</th>
                   <th className="pb-3 px-4">Due Date</th>
                   <th className="pb-3 px-4">Paid Date</th>
                   <th className="pb-3 px-4">Method & Transaction</th>
@@ -284,8 +286,8 @@ export const TeamDetail: React.FC = () => {
                     <td className="py-3.5 px-4 text-indigo-400 font-mono text-[11px]">
                       {ms.project?.name || 'Project'}
                     </td>
-                    <td className="py-3.5 px-4 font-extrabold text-slate-200">
-                      {formatCurrency(ms.amount)}
+                    <td className="py-3.5 px-4 text-right font-extrabold text-emerald-400">
+                      {formatINR(ms.amount)}
                     </td>
                     <td className="py-3.5 px-4 text-slate-400">{formatDate(ms.dueDate)}</td>
                     <td className="py-3.5 px-4 text-slate-300">{formatDate(ms.paidDate)}</td>

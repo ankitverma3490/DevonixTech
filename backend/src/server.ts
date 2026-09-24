@@ -2,11 +2,15 @@ import { createApp } from './app.js';
 import { connectDB } from './config/db.js';
 import { ENV } from './config/env.js';
 import { seedDatabase } from './services/seedService.js';
+import { MigrationService } from './services/migrationService.js';
 
 const startServer = async () => {
   try {
     console.log('🚀 Starting Agency Project & Payroll Management System Server...');
     await connectDB();
+
+    // Run multi-currency schema migrations safely on existing datasets
+    await MigrationService.runMigrations();
 
     // Auto-seed initial demo dataset if database is newly initialized
     await seedDatabase();

@@ -31,7 +31,7 @@ import { Modal } from '../components/common/Modal.js';
 import { Badge } from '../components/common/Badge.js';
 import { LoadingSpinner } from '../components/common/LoadingSpinner.js';
 import { EmptyState } from '../components/common/EmptyState.js';
-import { formatCurrency, formatDate } from '../utils/formatters.js';
+import { formatINR, formatDate } from '../utils/formatters.js';
 import { IPayroll } from '../types/index.js';
 
 export const Payroll: React.FC = () => {
@@ -47,11 +47,11 @@ export const Payroll: React.FC = () => {
 
   const [expandedPayrollIds, setExpandedPayrollIds] = useState<string[]>([]);
 
-  // Add Milestone Modal
+  // Add Milestone Modal (Always INR)
   const [selectedPayrollForMilestone, setSelectedPayrollForMilestone] = useState<IPayroll | null>(null);
   const [milestoneFormData, setMilestoneFormData] = useState({
     title: '',
-    amount: 1000,
+    amount: 25000,
     dueDate: new Date().toISOString().slice(0, 10),
     status: 'pending' as any,
     paymentMethod: 'bank_transfer',
@@ -59,7 +59,7 @@ export const Payroll: React.FC = () => {
     notes: '',
   });
 
-  // Pay Milestone Modal
+  // Pay Milestone Modal (Always INR)
   const [payingMilestone, setPayingMilestone] = useState<any | null>(null);
   const [payFormData, setPayFormData] = useState({
     paidDate: new Date().toISOString().slice(0, 10),
@@ -94,7 +94,7 @@ export const Payroll: React.FC = () => {
     setSelectedPayrollForMilestone(p);
     setMilestoneFormData({
       title: '',
-      amount: Math.max(0, p.pendingAmount || 1000),
+      amount: Math.max(0, p.pendingAmount || 25000),
       dueDate: new Date().toISOString().slice(0, 10),
       status: 'pending',
       paymentMethod: 'bank_transfer',
@@ -112,6 +112,7 @@ export const Payroll: React.FC = () => {
         data: {
           ...milestoneFormData,
           amount: Number(milestoneFormData.amount),
+          currency: 'INR',
         },
       })
     );
@@ -138,7 +139,7 @@ export const Payroll: React.FC = () => {
     loadPayrolls();
   };
 
-  // Calculations for KPI Cards
+  // Calculations for KPI Cards (All Strictly INR)
   const totalAgreed = payrolls.reduce((sum, p) => sum + (p.agreedAmount || 0), 0);
   const totalPaid = payrolls.reduce((sum, p) => sum + (p.totalPaid || 0), 0);
   const totalPending = Math.max(0, totalAgreed - totalPaid);
@@ -150,16 +151,21 @@ export const Payroll: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-white tracking-tight">
-            Project-Based Team Payroll
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-2xl font-extrabold text-white tracking-tight">
+              Project-Based Team Payroll
+            </h2>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              Strictly INR (₹) Only
+            </span>
+          </div>
           <p className="text-xs text-slate-400 mt-1">
-            Centrally manage project assignments, fixed agreed compensations, and milestone payouts
+            Centrally manage developer compensations, milestone divisions, and INR disbursements
           </p>
         </div>
       </div>
 
-      {/* Overview Cards */}
+      {/* Overview Cards (All INR) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <Card className="border-l-4 border-l-blue-500">
           <div className="flex items-center justify-between">
@@ -168,11 +174,11 @@ export const Payroll: React.FC = () => {
                 Total Committed Payroll
               </p>
               <h3 className="text-2xl font-extrabold text-white mt-1">
-                {formatCurrency(totalAgreed)}
+                {formatINR(totalAgreed)}
               </h3>
             </div>
-            <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400">
-              <DollarSign className="w-5 h-5" />
+            <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400 font-bold text-lg">
+              ₹
             </div>
           </div>
           <p className="text-[11px] text-slate-400 mt-3">{payrolls.length} Member Assignments</p>
@@ -185,14 +191,14 @@ export const Payroll: React.FC = () => {
                 Settled Disbursements
               </p>
               <h3 className="text-2xl font-extrabold text-emerald-400 mt-1">
-                {formatCurrency(totalPaid)}
+                {formatINR(totalPaid)}
               </h3>
             </div>
             <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400">
               <CheckCircle2 className="w-5 h-5" />
             </div>
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">Paid milestone payouts</p>
+          <p className="text-[11px] text-slate-400 mt-3">Disbursed to developer bank accounts</p>
         </Card>
 
         <Card className="border-l-4 border-l-amber-500">
@@ -202,7 +208,7 @@ export const Payroll: React.FC = () => {
                 Outstanding Balance
               </p>
               <h3 className="text-2xl font-extrabold text-amber-400 mt-1">
-                {formatCurrency(totalPending)}
+                {formatINR(totalPending)}
               </h3>
             </div>
             <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400">
@@ -255,7 +261,7 @@ export const Payroll: React.FC = () => {
         <EmptyState
           icon={<DollarSign className="w-8 h-8 text-indigo-400" />}
           title="No payroll records found"
-          description="Assign team members to projects to generate payroll records."
+          description="Assign team members to projects to generate INR payroll records."
         />
       ) : (
         <div className="space-y-4">
@@ -293,32 +299,32 @@ export const Payroll: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Financial Metrics Row */}
+                  {/* Financial Metrics Row (INR) */}
                   <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
                     <div className="text-right">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                        Agreed Payment
+                        Agreed (INR)
                       </span>
                       <span className="text-sm font-extrabold text-white">
-                        {formatCurrency(p.agreedAmount)}
+                        {formatINR(p.agreedAmount)}
                       </span>
                     </div>
 
                     <div className="text-right">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                        Paid Out
+                        Paid Out (INR)
                       </span>
                       <span className="text-sm font-extrabold text-emerald-400">
-                        {formatCurrency(p.totalPaid)}
+                        {formatINR(p.totalPaid)}
                       </span>
                     </div>
 
                     <div className="text-right">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                        Pending
+                        Pending (INR)
                       </span>
                       <span className="text-sm font-extrabold text-amber-400">
-                        {formatCurrency(p.pendingAmount)}
+                        {formatINR(p.pendingAmount)}
                       </span>
                     </div>
 
@@ -352,7 +358,7 @@ export const Payroll: React.FC = () => {
                 {isExpanded && (
                   <div className="p-5 border-t border-slate-800 bg-slate-950/80">
                     <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-                      Milestone Payment Tranches ({msList.length})
+                      Milestone Payment Tranches ({msList.length}) - Denominated in INR (₹)
                     </h5>
 
                     {msList.length === 0 ? (
@@ -365,7 +371,7 @@ export const Payroll: React.FC = () => {
                           <thead>
                             <tr className="border-b border-slate-800 text-slate-400 uppercase font-semibold">
                               <th className="pb-2.5 pr-4">Milestone Title</th>
-                              <th className="pb-2.5 px-4">Amount</th>
+                              <th className="pb-2.5 px-4 text-right">Amount (INR)</th>
                               <th className="pb-2.5 px-4">Due Date</th>
                               <th className="pb-2.5 px-4">Paid Date</th>
                               <th className="pb-2.5 px-4">Method & Transaction</th>
@@ -377,8 +383,8 @@ export const Payroll: React.FC = () => {
                             {msList.map((ms: any) => (
                               <tr key={ms._id} className="hover:bg-slate-900/50">
                                 <td className="py-3 pr-4 font-bold text-slate-200">{ms.title}</td>
-                                <td className="py-3 px-4 font-extrabold text-slate-100">
-                                  {formatCurrency(ms.amount)}
+                                <td className="py-3 px-4 text-right font-extrabold text-emerald-400">
+                                  {formatINR(ms.amount)}
                                 </td>
                                 <td className="py-3 px-4 text-slate-400">{formatDate(ms.dueDate)}</td>
                                 <td className="py-3 px-4 text-slate-300">{formatDate(ms.paidDate)}</td>
@@ -431,11 +437,11 @@ export const Payroll: React.FC = () => {
         </div>
       )}
 
-      {/* ADD MILESTONE MODAL */}
+      {/* ADD MILESTONE MODAL (INR) */}
       <Modal
         isOpen={!!selectedPayrollForMilestone}
         onClose={() => setSelectedPayrollForMilestone(null)}
-        title="Add Milestone Tranche"
+        title="Add Milestone Tranche (INR)"
         maxWidth="md"
       >
         <form onSubmit={handleSaveMilestone} className="space-y-4">
@@ -449,7 +455,7 @@ export const Payroll: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Milestone Amount ($)"
+              label="Milestone Amount (₹ INR)"
               type="number"
               required
               min={0}
@@ -478,7 +484,7 @@ export const Payroll: React.FC = () => {
               Cancel
             </Button>
             <Button type="submit" variant="primary">
-              Create Milestone
+              Create Milestone (INR)
             </Button>
           </div>
         </form>
@@ -495,7 +501,7 @@ export const Payroll: React.FC = () => {
           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs flex justify-between items-center">
             <span className="text-slate-400">Payout Amount</span>
             <span className="text-base font-extrabold text-emerald-400">
-              {formatCurrency(payingMilestone?.amount)}
+              {formatINR(payingMilestone?.amount)}
             </span>
           </div>
 
@@ -512,7 +518,7 @@ export const Payroll: React.FC = () => {
               value={payFormData.paymentMethod}
               onChange={(e) => setPayFormData({ ...payFormData, paymentMethod: e.target.value })}
               options={[
-                { value: 'bank_transfer', label: 'Bank Transfer' },
+                { value: 'bank_transfer', label: 'Bank Transfer (NEFT/IMPS/UPI)' },
                 { value: 'stripe', label: 'Stripe' },
                 { value: 'wise', label: 'Wise' },
                 { value: 'paypal', label: 'PayPal' },
@@ -522,10 +528,10 @@ export const Payroll: React.FC = () => {
           </div>
 
           <Input
-            label="Transaction ID / Wire Reference"
+            label="Transaction ID / UTR / Reference"
             value={payFormData.transactionId}
             onChange={(e) => setPayFormData({ ...payFormData, transactionId: e.target.value })}
-            placeholder="e.g. TXN-WIRE-99210"
+            placeholder="e.g. UTR-BANK-99210"
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
